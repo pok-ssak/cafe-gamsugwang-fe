@@ -1,26 +1,78 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
+    "Helvetica Neue", sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* 세련된 제주도 테마 색상 */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* 제주 바다 - 세련된 청록색 */
+    --primary: 196 64% 38%;
+    --primary-foreground: 210 40% 98%;
+
+    /* 제주 감귤 - 세련된 코랄색 */
+    --secondary: 16 92% 65%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* 제주 오름 - 세련된 테라코타색 */
+    --accent: 22 65% 57%;
+    --accent-foreground: 210 40% 98%;
+
+    /* 제주 돌담 - 세련된 회색 */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* 제주 현무암 - 세련된 다크 그레이 */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 196 64% 38%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 세련된 제주도 테마를 위한 추가 클래스 */
+.jeju-shadow {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.jeju-gradient {
+  background: linear-gradient(135deg, rgba(23, 162, 184, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
 }
