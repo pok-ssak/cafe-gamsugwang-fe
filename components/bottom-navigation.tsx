@@ -1,6 +1,6 @@
 "use client"
 
-import { Map, Telescope, List, User, Settings } from "lucide-react"
+import { Home, Telescope, User, Newspaper } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -11,10 +11,9 @@ export default function BottomNavigation() {
   const navItems = [
     
     { href: "/explore", icon: Telescope, label: "탐색" },
-    { href: "/list", icon: List, label: "목록" },
-    { href: "/", icon: Map, label: "지도" },
+    { href: "/", icon: Home, label: "홈" },
     { href: "/profile", icon: User, label: "프로필" },
-    { href: "/settings", icon: Settings, label: "설정" },
+    { href: "/feed", icon: Newspaper, label: "피드" },
   ]
 
   return (
