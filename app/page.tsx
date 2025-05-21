@@ -16,6 +16,7 @@ declare global {
   }
 }
 
+
 export default function Home() {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
