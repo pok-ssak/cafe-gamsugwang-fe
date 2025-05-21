@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
+import axios from "axios"
 
 interface PlaceDetailModalProps {
   place: Place | null
@@ -36,20 +37,44 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
-  const [reviews, setReviews] = useState<Review[]>([
-    { id: 1, userId: 1, userName: "사용자 1", rating: 4.5, content: "카페 분위기가 정말 좋았어요. 커피도 맛있고 직원분들도 친절하셨어요. 다음에 또 방문하고 싶은 곳이에요.", createdAt: "2024.03.01" },
-    { id: 2, userId: 2, userName: "사용자 2", rating: 4.0, content: "분위기가 좋고 커피도 맛있어요. 특히 아메리카노가 인상적이었습니다.", createdAt: "2024.03.02" },
-    { id: 3, userId: 3, userName: "사용자 3", rating: 5.0, content: "최고의 카페입니다. 매번 방문할 때마다 만족스러워요.", createdAt: "2024.03.03" },
-    { id: 4, userId: 4, userName: "사용자 4", rating: 4.8, content: "좋은 분위기와 맛있는 커피가 조화롭네요.", createdAt: "2024.03.04" },
-  ])
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const [newReview, setNewReview] = useState({
-    rating: 5,
+    title: "",
     content: "",
-    images: [] as File[]
+    imageUrl: "",
+    rate: 5
   })
   const [imagePreview, setImagePreview] = useState<string[]>([])
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 리뷰 목록 가져오기
+  const fetchReviews = async () => {
+    if (!place) return
+    
+    setIsLoadingReviews(true)
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/reviews`, {
+        // params: {
+        //   placeId: place.id
+        // },
+        withCredentials: true
+      })
+      setReviews(response.data.content) // Page 인터페이스의 content 배열 사용
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error)
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }
+
+  // 모달이 열릴 때 리뷰 목록 가져오기
+  useEffect(() => {
+    if (place) {
+      fetchReviews()
+    }
+  }, [place])
 
   // 더미 메뉴 데이터 생성
   const generateDummyMenu = () => {
@@ -103,7 +128,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     if (!place) return
     
     // 카카오맵 길찾기 URL 생성 (위도,경도 형식)
-    const url = `https://map.kakao.com/link/to/${place.latitude},${place.longitude}`
+    const url = `https://map.kakao.com/link/to/${place.name},${place.latitude},${place.longitude}`
     window.open(url, '_blank')
   }
 
@@ -135,55 +160,6 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     setImagePreview([])
   }
 
-  const handleSubmitReview = async () => {
-    try {
-      const formData = new FormData()
-      formData.append('rating', newReview.rating.toString())
-      formData.append('content', newReview.content)
-      if (newReview.images[0]) {
-        formData.append('image', newReview.images[0])
-      }
-      if (place) {
-        formData.append('placeId', place.id.toString())
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/reviews`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      })
-
-      if (response.ok) {
-        const newReviewData = await response.json()
-        
-        // 새 리뷰를 목록 앞에 추가
-        setReviews(prevReviews => [{
-          id: newReviewData.id,
-          userId: newReviewData.userId,
-          userName: newReviewData.userName,
-          rating: newReview.rating,
-          content: newReview.content,
-          createdAt: new Date().toLocaleDateString('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          }).replace(/\. /g, '.').replace('.', ''),
-          imageUrl: newReviewData.imageUrl
-        }, ...prevReviews])
-
-        // 모달 닫기 및 상태 초기화
-        setShowReviewModal(false)
-        setNewReview({ rating: 5, content: "", images: [] })
-        setImagePreview([])
-      } else {
-        throw new Error('리뷰 등록에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('Review submission failed:', error)
-      alert('리뷰 등록에 실패했습니다. 다시 시도해주세요.')
-    }
-  }
-
   const handleReviewClick = () => {
     // TODO: 실제 로그인 상태 체크 로직으로 대체
     const isLoggedIn = true // 임시로 true로 설정
@@ -196,6 +172,36 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     }
 
     setShowReviewModal(true)
+    fetchReviews() // 리뷰 작성 모달 열 때 리뷰 목록 갱신
+  }
+
+  const handleSubmitReview = async () => {
+    try {
+      if (!place) return
+      const payload = {
+        title: newReview.title,
+        content: newReview.content,
+        imageUrl: newReview.imageUrl,
+        rate: newReview.rate
+      }
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_HOST}/reviews`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          withCredentials: true
+        }
+      )
+      
+      setShowReviewModal(false)
+      setNewReview({ title: "", content: "", imageUrl: "", rate: 5 })
+      fetchReviews() // 리뷰 작성 완료 후 리뷰 목록 갱신
+    } catch (error) {
+      console.error('Review submission failed:', error)
+      alert('리뷰 등록에 실패했습니다. 다시 시도해주세요.')
+    }
   }
 
   if (!place) return null
@@ -297,7 +303,11 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold">리뷰</h3>
               </div>
-              {reviews.length > 0 ? (
+              {isLoadingReviews ? (
+                <div className="text-center py-8 text-gray-500">
+                  리뷰를 불러오는 중...
+                </div>
+              ) : reviews.length > 0 ? (
                 <div className="relative">
                   <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide">
                     {reviews.map((review, index) => (
@@ -365,8 +375,21 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="space-y-6">
+              {/* 제목 입력 */}
+              <div>
+                <label htmlFor="review-title" className="block text-sm font-medium text-gray-700 mb-2">
+                  제목
+                </label>
+                <input
+                  id="review-title"
+                  type="text"
+                  value={newReview.title}
+                  onChange={e => setNewReview(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="리뷰 제목을 입력하세요"
+                />
+              </div>
               {/* 별점 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -376,21 +399,16 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
-                      onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
+                      onClick={() => setNewReview(prev => ({ ...prev, rate: star }))}
                       className="p-1"
                     >
                       <Star
-                        className={`w-8 h-8 ${
-                          star <= newReview.rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300"
-                        }`}
+                        className={`w-8 h-8 ${star <= newReview.rate ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
                       />
                     </button>
                   ))}
                 </div>
               </div>
-
               {/* 리뷰 내용 */}
               <div>
                 <label htmlFor="review-content" className="block text-sm font-medium text-gray-700 mb-2">
@@ -399,51 +417,25 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 <Textarea
                   id="review-content"
                   value={newReview.content}
-                  onChange={(e) => setNewReview(prev => ({ ...prev, content: e.target.value }))}
+                  onChange={e => setNewReview(prev => ({ ...prev, content: e.target.value }))}
                   placeholder="리뷰를 작성해주세요"
                   className="min-h-[120px]"
                 />
               </div>
-
-              {/* 이미지 업로드 */}
+              {/* 이미지 URL 입력 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  이미지 첨부 (선택사항)
+                <label htmlFor="review-image-url" className="block text-sm font-medium text-gray-700 mb-2">
+                  이미지 URL (선택사항)
                 </label>
-                <div className="flex gap-2">
-                  {imagePreview.length > 0 ? (
-                    <div className="relative aspect-square w-24">
-                      <Image
-                        src={imagePreview[0]}
-                        alt="Preview"
-                        fill
-                        className="object-cover rounded-lg"
-                      />
-                      <button
-                        onClick={handleRemoveImage}
-                        className="absolute top-1 right-1 p-1 bg-black/50 rounded-full text-white hover:bg-black/70"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-24 aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400"
-                    >
-                      <Camera className="w-6 h-6 text-gray-400" />
-                    </button>
-                  )}
-                </div>
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
+                  id="review-image-url"
+                  type="text"
+                  value={newReview.imageUrl}
+                  onChange={e => setNewReview(prev => ({ ...prev, imageUrl: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="이미지 URL을 입력하세요"
                 />
               </div>
-
               {/* 제출 버튼 */}
               <Button
                 onClick={handleSubmitReview}
