@@ -2,30 +2,18 @@
 
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/contexts/AuthContext"
 import { LogOut } from "lucide-react"
 
 export default function Profile() {
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, logout } = useAuth()
 
   const handleLogout = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (response.ok) {
-        // 쿠키 삭제
-        document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-        document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-        
-        // 홈 화면으로 리다이렉트
-        router.push('/')
-      }
+      await logout()
     } catch (error) {
-      console.error('Logout failed:', error)
+      alert('로그아웃 중 오류가 발생했습니다.')
     }
   }
 
@@ -106,22 +94,14 @@ export default function Profile() {
             <span>고객센터</span>
             <span className="text-gray-400">→</span>
           </button>
-          <button className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between text-red-500">
+          <button 
+            onClick={handleLogout}
+            className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between text-red-500"
+          >
             <span>로그아웃</span>
             <span className="text-red-400">→</span>
           </button>
         </div>
-      </div>
-
-      <div className="p-4">
-        <Button 
-          variant="destructive" 
-          className="w-full flex items-center justify-center gap-2"
-          onClick={handleLogout}
-        >
-          <LogOut className="w-4 h-4" />
-          로그아웃
-        </Button>
       </div>
     </div>
   )

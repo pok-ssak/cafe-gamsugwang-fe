@@ -8,15 +8,15 @@ export interface MenuItem {
 
 export interface Place {
   id: number
-  name: string
+  title: string
   address: string
   imageUrl: string
   rating: number
-  businessHours: string
-  phone: string
-  latitude: number
-  longitude: number
+  openTime: string
+  phoneNumber: string
+  lat: number
+  lon: number
   description: string
-  reviewCount: number
+  ratingCount: number
   menu: MenuItem[]
 } 

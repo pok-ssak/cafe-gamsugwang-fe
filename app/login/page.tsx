@@ -1,16 +1,21 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Eye, EyeOff } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useAuth } from '@/contexts/AuthContext'
+import axios from "axios"
 
 export default function Login() {
+  const searchParams = useSearchParams()
   const router = useRouter()
+  const { login } = useAuth()
+  const from = searchParams.get('from') || '/'
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -37,12 +42,30 @@ export default function Login() {
       const expires = new Date()
       expires.setDate(expires.getDate() + 7) // 7일 후 만료
       document.cookie = `accessToken=${testToken}; expires=${expires.toUTCString()}; path=/`
-      router.push("/")
+      login(testToken)
+      router.push(from)
       return
     }
 
-    // TODO: 실제 로그인 로직 구현
-    console.log("실제 로그인 로직 구현 필요")
+    try {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_HOST}/auth/login`,
+        {
+          email,
+          password
+        },
+        {
+          withCredentials: true
+        }
+      )
+      // 서버에서 받은 accessToken으로 로그인 처리
+      const { accessToken, refreshToken } = response.data.data
+      login(accessToken)
+      router.push(from)
+    } catch (error) {
+      console.error('Login failed:', error)
+      alert('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.')
+    }
   }
 
   return (

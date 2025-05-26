@@ -65,20 +65,20 @@ export default function Explore() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="bg-white border-b">
+        <div className="bg-white border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold">탐색</h1>
+        <h1 className="text-xl font-bold">탐색</h1>
         </div>
         {/* 상단 검색바 */}
-        <div className="relative top-4 left-4 right-4 z-10">
-          <div className="relative">
-            <Input className="pl-10 pr-4 py-2 bg-white rounded-full shadow-lg" placeholder="검색어를 입력하세요" />
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          </div>
+      <div className="relative top-4 left-4 right-4 z-10">
+        <div className="relative">
+          <Input className="pl-10 pr-4 py-2 bg-white rounded-full shadow-lg" placeholder="검색어를 입력하세요" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
         </div>
       </div>
+      </div>
 
-      {/* 맞춤 추천 섹션 */}
+        {/* 맞춤 추천 섹션 */}
       <div className="mt-8 pt-16 px-4 pb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">맞춤 추천</h2>

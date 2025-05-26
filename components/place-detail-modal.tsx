@@ -40,12 +40,12 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const [newReview, setNewReview] = useState({
-    title: "",
     content: "",
     imageUrl: "",
     rate: 5
   })
   const [imagePreview, setImagePreview] = useState<string[]>([])
+  const [errorMessage, setErrorMessage] = useState<string>("")
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -55,13 +55,15 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     
     setIsLoadingReviews(true)
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/reviews`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/${place.id}/reviews`, {
+      // const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/reviews`, {
         // params: {
         //   placeId: place.id
         // },
         withCredentials: true
       })
-      setReviews(response.data.content) // Page 인터페이스의 content 배열 사용
+      // console.log(response.data.data);
+      setReviews(response.data.data.content) // data.data.content로 수정
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
     } finally {
@@ -128,7 +130,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     if (!place) return
     
     // 카카오맵 길찾기 URL 생성 (위도,경도 형식)
-    const url = `https://map.kakao.com/link/to/${place.name},${place.latitude},${place.longitude}`
+    const url = `https://map.kakao.com/link/to/${place.title},${place.lat},${place.lon}`
     window.open(url, '_blank')
   }
 
@@ -178,8 +180,9 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
   const handleSubmitReview = async () => {
     try {
       if (!place) return
+      setErrorMessage("") // 에러 메시지 초기화
       const payload = {
-        title: newReview.title,
+        cafeId: place.id,
         content: newReview.content,
         imageUrl: newReview.imageUrl,
         rate: newReview.rate
@@ -190,17 +193,17 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
         {
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
           withCredentials: true
         }
       )
       
       setShowReviewModal(false)
-      setNewReview({ title: "", content: "", imageUrl: "", rate: 5 })
-      fetchReviews() // 리뷰 작성 완료 후 리뷰 목록 갱신
-    } catch (error) {
+      fetchReviews()
+    } catch (error: any) {
       console.error('Review submission failed:', error)
-      alert('리뷰 등록에 실패했습니다. 다시 시도해주세요.')
+      setErrorMessage(error.response?.data?.error?.message || '리뷰 등록에 실패했습니다. 다시 시도해주세요.')
     }
   }
 
@@ -236,7 +239,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
             <div className="relative h-48 w-full">
               <Image
                 src={place.imageUrl}
-                alt={place.name}
+                alt={place.title}
                 fill
                 className="object-cover rounded-t-2xl"
               />
@@ -247,12 +250,12 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <h2 className="text-2xl font-bold">{place.name}</h2>
+                  <h2 className="text-2xl font-bold">{place.title}</h2>
                   <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                     <span className="font-medium text-orange-600">{place.rating}</span>
                   </div>
-                  <span className="text-gray-500 text-sm">({place.reviewCount})</span>
+                  <span className="text-gray-500 text-sm">({place.ratingCount})</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-600 text-sm">
                   <MapPin className="w-4 h-4" />
@@ -307,7 +310,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 <div className="text-center py-8 text-gray-500">
                   리뷰를 불러오는 중...
                 </div>
-              ) : reviews.length > 0 ? (
+              ) : reviews && reviews.length > 0 ? (
                 <div className="relative">
                   <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide">
                     {reviews.map((review, index) => (
@@ -321,6 +324,16 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                           </div>
                           <span className="text-xs text-gray-500">{review.createdAt}</span>
                         </div>
+                        {review.imageUrl && (review.imageUrl.startsWith('https://') || review.imageUrl.startsWith('http://') || review.imageUrl.startsWith('/')) && (
+                          <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
+                            <Image
+                              src={review.imageUrl}
+                              alt="리뷰 이미지"
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 mb-2">
                           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                           <span className="text-sm font-medium text-gray-700">{review.rating}</span>
@@ -343,12 +356,26 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
               {place.menu && place.menu.length > 0 ? (
                 <div className="space-y-4">
                   {place.menu.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
+                    <div key={index} className="flex items-center gap-4">
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+                        {item.imageUrl ? (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Camera className="w-8 h-8 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
                         <h4 className="font-medium">{item.name}</h4>
                         <p className="text-sm text-gray-500">{item.description}</p>
+                        <span className="font-medium">{item.price.toLocaleString()}원</span>
                       </div>
-                      <span className="font-medium">{item.price.toLocaleString()}원</span>
                     </div>
                   ))}
                 </div>
@@ -376,20 +403,13 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
               </button>
             </div>
             <div className="space-y-6">
-              {/* 제목 입력 */}
-              <div>
-                <label htmlFor="review-title" className="block text-sm font-medium text-gray-700 mb-2">
-                  제목
-                </label>
-                <input
-                  id="review-title"
-                  type="text"
-                  value={newReview.title}
-                  onChange={e => setNewReview(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  placeholder="리뷰 제목을 입력하세요"
-                />
-              </div>
+              {/* 에러 메시지 */}
+              {errorMessage && (
+                <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm">
+                  {errorMessage}
+                </div>
+              )}
+              
               {/* 별점 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -408,7 +428,11 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                     </button>
                   ))}
                 </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {newReview.rate}점 / 5점
+                </div>
               </div>
+
               {/* 리뷰 내용 */}
               <div>
                 <label htmlFor="review-content" className="block text-sm font-medium text-gray-700 mb-2">
@@ -422,6 +446,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                   className="min-h-[120px]"
                 />
               </div>
+
               {/* 이미지 URL 입력 */}
               <div>
                 <label htmlFor="review-image-url" className="block text-sm font-medium text-gray-700 mb-2">
@@ -436,6 +461,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                   placeholder="이미지 URL을 입력하세요"
                 />
               </div>
+
               {/* 제출 버튼 */}
               <Button
                 onClick={handleSubmitReview}

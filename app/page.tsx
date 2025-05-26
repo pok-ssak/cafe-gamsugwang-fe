@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input"
 import { useMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
 import { Place } from "@/types/place"
-import { PLACES } from "@/dummy/places"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { Button } from "@/components/ui/button"
+import axios from "axios"
 
 declare global {
   interface Window {
@@ -33,6 +33,28 @@ export default function Home() {
   const [currentAddress, setCurrentAddress] = useState("제주특별자치도 제주시 중앙로 1")
   const clickedMarkerRef = useRef<any>(null)
   const [currentLocationMarker, setCurrentLocationMarker] = useState<any>(null)
+  const [places, setPlaces] = useState<Place[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // 카페 목록 가져오기
+  const fetchPlaces = async () => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes`, {
+      // const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/recommend?keyword=&option=location&lat=33.4996213&lon=126.5311884`, {
+        withCredentials: true
+      })
+      console.log(response.data.data.content);
+      setPlaces(response.data.data.content)
+    } catch (error) {
+      console.error('Failed to fetch places:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPlaces()
+  }, [])
 
   useEffect(() => {
     const kakaoMapScript = document.createElement("script")
@@ -92,8 +114,9 @@ export default function Home() {
           )
 
           // 모든 장소에 마커 생성
-          PLACES.forEach(place => {
-            const position = new window.kakao.maps.LatLng(place.latitude, place.longitude)
+          places.forEach(place => {
+            console.log(place)
+            const position = new window.kakao.maps.LatLng(place.lat, place.lon)
             
             const marker = new window.kakao.maps.Marker({
               position: position,
@@ -104,13 +127,12 @@ export default function Home() {
             // 커스텀 오버레이 생성
             const overlayContent = document.createElement('div')
             overlayContent.className = 'bg-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium mb-4'
-            overlayContent.textContent = place.name
+            overlayContent.textContent = place.title
 
             const overlay = new window.kakao.maps.CustomOverlay({
               position: position,
               content: overlayContent,
-              yAnchor: 1.5,  // 마커 위에 표시
-              zIndex: 3      // 다른 요소들 위에 표시
+              zIndex: 3
             })
 
             // 마커 클릭 이벤트
@@ -131,10 +153,10 @@ export default function Home() {
           })
 
           // 마커 생성
-          const newMarkers = PLACES.map(place => {
+          const newMarkers = places.map(place => {
             const marker = new window.kakao.maps.Marker({
-              position: new window.kakao.maps.LatLng(place.latitude, place.longitude),
-              title: place.name
+              position: new window.kakao.maps.LatLng(place.lat, place.lon),
+              title: place.title
             })
 
             // 마커 클릭 이벤트
@@ -155,7 +177,7 @@ export default function Home() {
     return () => {
       kakaoMapScript.removeEventListener("load", onLoadKakaoAPI)
     }
-  }, [])
+  }, [places]) // places가 변경될 때마다 지도 업데이트
 
   useEffect(() => {
     if (!map) return
@@ -170,21 +192,21 @@ export default function Home() {
   }, [isList, map, markers])
 
   const handlePlaceChange = (direction: 'prev' | 'next') => {
-    if (selectedPlace && PLACES.length > 1) {
-      const currentIndex = PLACES.indexOf(selectedPlace)
+    if (selectedPlace && places.length > 1) {
+      const currentIndex = places.indexOf(selectedPlace)
       let newIndex
 
       if (direction === 'prev') {
-        newIndex = (currentIndex - 1 + PLACES.length) % PLACES.length
+        newIndex = (currentIndex - 1 + places.length) % places.length
       } else {
-        newIndex = (currentIndex + 1) % PLACES.length
+        newIndex = (currentIndex + 1) % places.length
       }
 
-      const newPlace = PLACES[newIndex]
+      const newPlace = places[newIndex]
       setSelectedPlace(newPlace)
 
       if (map) {
-        const position = new window.kakao.maps.LatLng(newPlace.latitude, newPlace.longitude)
+        const position = new window.kakao.maps.LatLng(newPlace.lat, newPlace.lon)
         map.panTo(position)
         map.setLevel(3)
       }
@@ -343,13 +365,13 @@ export default function Home() {
               {currentAddress}
             </span>
           </div>
-          <button 
-            onClick={moveToCurrentLocation}
+        <button 
+          onClick={moveToCurrentLocation}
             className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
-          >
+        >
             <MapPin className="w-4 h-4" />
             <span className="text-sm">현재 위치</span>
-          </button>
+        </button>
         </div>
       )}
 
@@ -357,46 +379,56 @@ export default function Home() {
       {isList ? (
         <div className="pt-24 pb-24 px-4 h-full overflow-y-auto">
           <div className="space-y-4">
-            {PLACES.map((place) => (
-              <div
-                key={place.id}
-                onClick={() => {
-                  setSelectedPlace(place)
-                  setShowModal(true)
-                }}
-                className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-              >
-                <div className="flex gap-4">
-                  <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                    <img 
-                      src={place.imageUrl} 
-                      alt={place.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <h2 className="text-lg font-bold truncate">{place.name}</h2>
-                        <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
-                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium text-orange-600 text-sm">{place.rating}</span>
-                        </div>
-                        <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
-                      </div>
-                      <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
-                        <Heart className="w-5 h-5 text-gray-400 hover:text-red-500" />
-                      </button>
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">
+                카페 목록을 불러오는 중...
+              </div>
+            ) : places.length > 0 ? (
+              places.map((place) => (
+                <div
+                  key={place.id}
+                  onClick={() => {
+                    setSelectedPlace(place)
+                    setShowModal(true)
+                  }}
+                  className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
+                >
+                  <div className="flex gap-4">
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
+                      <img 
+                        src={place.imageUrl} 
+                        alt={place.title}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <p className="text-gray-600 text-sm line-clamp-2">{place.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-gray-900">{place.title}</h3>
+                          <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
+                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium text-orange-600">{place.rating}</span>
+                          </div>
+                          <span className="text-gray-500 text-sm">({place.ratingCount})</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 text-sm">
+                        <MapPin className="w-4 h-4" />
+                        <span className="truncate">{place.address}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                카페 목록이 없습니다
               </div>
-            ))}
+            )}
           </div>
         </div>
       ) : (
-        <div ref={mapRef} className="w-full h-full" />
+        <div ref={mapRef} className="w-full h-full absolute inset-0" />
       )}
 
       {/* 리스트 뷰 오버레이 */}
@@ -432,42 +464,52 @@ export default function Home() {
               {/* 리스트 컨텐츠 */}
               <div className="flex-1 overflow-y-auto px-4 py-2 pb-24">
                 <div className="space-y-4">
-                  {PLACES.map((place) => (
-                    <div
-                      key={place.id}
-                      onClick={() => {
-                        setSelectedPlace(place)
-                        setShowModal(true)
-                      }}
-                      className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-                    >
-                      <div className="flex gap-4">
-                        <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                          <img 
-                            src={place.imageUrl} 
-                            alt={place.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <h2 className="text-lg font-bold truncate">{place.name}</h2>
-                              <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span className="font-medium text-orange-600 text-sm">{place.rating}</span>
-                              </div>
-                              <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
-                            </div>
-                            <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
-                              <Heart className="w-5 h-5 text-gray-400 hover:text-red-500" />
-                            </button>
+                  {isLoading ? (
+                    <div className="text-center py-8 text-gray-500">
+                      카페 목록을 불러오는 중...
+                    </div>
+                  ) : places.length > 0 ? (
+                    places.map((place) => (
+                      <div
+                        key={place.id}
+                        onClick={() => {
+                          setSelectedPlace(place)
+                          setShowModal(true)
+                        }}
+                        className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
+                      >
+                        <div className="flex gap-4">
+                          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
+                            <img 
+                              src={place.imageUrl} 
+                              alt={place.title}
+                              className="w-full h-full object-cover"
+                            />
                           </div>
-                          <p className="text-gray-600 text-sm line-clamp-2">{place.description}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-gray-900">{place.title}</h3>
+                                <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
+                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="font-medium text-orange-600">{place.rating}</span>
+                                </div>
+                                <span className="text-gray-500 text-sm">({place.ratingCount})</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600 text-sm">
+                              <MapPin className="w-4 h-4" />
+                              <span className="truncate">{place.address}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      카페 목록이 없습니다
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -517,7 +559,7 @@ export default function Home() {
                 {/* 왼쪽 컨텐츠 영역 */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold truncate">{selectedPlace?.name}</h2>
+                    <h2 className="text-xl font-bold truncate">{selectedPlace?.title}</h2>
                     <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
                       <Heart className="w-6 h-6 text-gray-400 hover:text-red-500" />
                     </button>
@@ -527,7 +569,7 @@ export default function Home() {
                       <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                       <span className="font-medium text-orange-600 text-sm">{selectedPlace?.rating}</span>
                     </div>
-                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.reviewCount})</span>
+                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.ratingCount})</span>
                   </div>
                   <p className="text-gray-600 text-base mb-4 leading-relaxed line-clamp-2">{selectedPlace?.description}</p>
                 </div>
@@ -535,7 +577,7 @@ export default function Home() {
                 <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
                   <img 
                     src={selectedPlace?.imageUrl} 
-                    alt={selectedPlace?.name}
+                    alt={selectedPlace?.title}
                     className="w-full h-full object-cover"
                   />
                 </div>
