@@ -2,11 +2,13 @@
 
 import { useParams } from "next/navigation"
 import { Star, Heart, MapPin, Phone, Clock } from "lucide-react"
-import { PLACES } from "@/app/page"
+import { Place } from "@/types/place"
+import { PLACES } from "@/dummy/places"
 
 export default function PlaceDetail() {
-  const params = useParams()
-  const place = PLACES.find(p => p.id === params.id)
+  const { id } = useParams()
+  const placeId = id ? parseInt(id as string) : null
+  const place = PLACES.find(p => p.id === placeId)
 
   if (!place) {
     return <div>장소를 찾을 수 없습니다.</div>
