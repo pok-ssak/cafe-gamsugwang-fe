@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User } from "lucide-react"
+import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp } from "lucide-react"
 import Image from "next/image"
 import { Place } from "@/types/place"
 import { useEffect, useRef, useState } from "react"
@@ -25,11 +25,13 @@ interface MenuItem {
 interface Review {
   id: number
   userId: number
-  userName: string
+  nickname: string
   rating: number
   content: string
   createdAt: string
   imageUrl?: string
+  likedByUser: boolean
+  likeCount: number
 }
 
 export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
@@ -62,7 +64,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
         // },
         withCredentials: true
       })
-      // console.log(response.data.data);
+      console.log(response.data.data.content);
       setReviews(response.data.data.content) // data.data.content로 수정
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
@@ -207,6 +209,74 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     }
   }
 
+  const handleLikeToggle = async (reviewId: number) => {
+    try {
+      const accessToken = localStorage.getItem('accessToken')
+      if (!accessToken) {
+        if (confirm("좋아요를 누르려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
+          router.push("/login")
+        }
+        return
+      }
+
+      // 현재 리뷰 찾기
+      const currentReview = reviews.find(review => review.id === reviewId)
+      if (!currentReview) return
+
+      // 낙관적 업데이트: UI를 먼저 업데이트
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: !review.likedByUser,
+                likeCount: review.likedByUser ? review.likeCount - 1 : review.likeCount + 1
+              }
+            : review
+        )
+      )
+
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_HOST}/reviews/${reviewId}/like-toggle`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          },
+          withCredentials: true
+        }
+      )
+
+      // API 응답으로 받은 데이터로 상태 업데이트
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: response.data.data.likedByUser,
+                likeCount: response.data.data
+              }
+            : review
+        )
+      )
+
+    } catch (error) {
+      console.error('Failed to toggle like:', error)
+      // 실패 시 원래 상태로 되돌리기
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: !review.likedByUser,
+                likeCount: review.likedByUser ? review.likeCount + 1 : review.likeCount - 1
+              }
+            : review
+        )
+      )
+    }
+  }
+
   if (!place) return null
 
   return (
@@ -320,9 +390,20 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                             <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                               <User className="w-4 h-4 text-gray-500" />
                             </div>
-                            <span className="text-sm font-medium truncate">{review.userName}</span>
+                            <span className="text-sm font-medium truncate">{review.nickname}</span>
                           </div>
-                          <span className="text-xs text-gray-500">{review.createdAt}</span>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleLikeToggle(review.id)}
+                              className={`flex items-center gap-1 transition-colors ${
+                                review.likedByUser ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                              }`}
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                              <span className="text-xs">{review.likeCount}</span>
+                            </button>
+                            <span className="text-xs text-gray-500">{review.createdAt}</span>
+                          </div>
                         </div>
                         {review.imageUrl && (review.imageUrl.startsWith('https://') || review.imageUrl.startsWith('http://') || review.imageUrl.startsWith('/')) && (
                           <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
@@ -334,11 +415,13 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                             />
                           </div>
                         )}
-                        <div className="flex items-center gap-1 mb-2">
-                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-medium text-gray-700">{review.rating}</span>
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{review.content}</p>
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          <span className="inline-flex items-center gap-1 mr-2">
+                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium text-gray-700">{review.rating}</span>
+                          </span>
+                          {review.content}
+                        </p>
                       </div>
                     ))}
                   </div>
