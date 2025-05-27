@@ -44,10 +44,11 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
   const [newReview, setNewReview] = useState({
     content: "",
     imageUrl: "",
-    rate: 5
+    rating: 5
   })
   const [imagePreview, setImagePreview] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string>("")
+  const [isUploading, setIsUploading] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -136,30 +137,55 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     window.open(url, '_blank')
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length > 1) {
-      alert("이미지는 1개만 업로드할 수 있습니다.")
-      return
-    }
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    setNewReview(prev => ({
-      ...prev,
-      images: [files[0]] // 기존 이미지를 새 이미지로 교체
-    }))
+    try {
+      setIsUploading(true)
+      setErrorMessage("")
 
-    // 이미지 미리보기 생성
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview([reader.result as string])
+      const formData = new FormData()
+      formData.append("image", file)
+
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_HOST}/upload`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+          },
+          withCredentials: true
+        }
+      )
+
+      const imageUrl = response.data.url
+      console.log(response)
+      setNewReview(prev => ({
+        ...prev,
+        imageUrl
+      }))
+
+      // 이미지 미리보기 생성
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview([reader.result as string])
+      }
+      reader.readAsDataURL(file)
+
+    } catch (error: any) {
+      console.error('Image upload failed:', error)
+      setErrorMessage(error.response?.data?.message || '이미지 업로드에 실패했습니다.')
+    } finally {
+      setIsUploading(false)
     }
-    reader.readAsDataURL(files[0])
   }
 
   const handleRemoveImage = () => {
     setNewReview(prev => ({
       ...prev,
-      images: []
+      imageUrl: ""
     }))
     setImagePreview([])
   }
@@ -187,7 +213,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
         cafeId: place.id,
         content: newReview.content,
         imageUrl: newReview.imageUrl,
-        rate: newReview.rate
+        rating: newReview.rating
       }
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_HOST}/reviews`,
@@ -387,8 +413,20 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                       <div key={index} className="flex-shrink-0 w-[280px] bg-gray-50 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                              <User className="w-4 h-4 text-gray-500" />
+                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                              {review.imageUrl ? (
+                                <Image
+                                  src={review.imageUrl}
+                                  alt={review.nickname}
+                                  width={32}
+                                  height={32}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                  <User className="w-4 h-4 text-gray-500" />
+                                </div>
+                              )}
                             </div>
                             <span className="text-sm font-medium truncate">{review.nickname}</span>
                           </div>
@@ -498,21 +536,21 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   별점
                 </label>
-                <div className="flex gap-1">
+                <div className="flex justify-center gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
-                      onClick={() => setNewReview(prev => ({ ...prev, rate: star }))}
+                      onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
                       className="p-1"
                     >
                       <Star
-                        className={`w-8 h-8 ${star <= newReview.rate ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                        className={`w-8 h-8 ${star <= newReview.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
                       />
                     </button>
                   ))}
                 </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {newReview.rate}점 / 5점
+                <div className="text-sm text-gray-500 mt-1 text-center">
+                  {newReview.rating}점 / 5점
                 </div>
               </div>
 
@@ -530,19 +568,54 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 />
               </div>
 
-              {/* 이미지 URL 입력 */}
+              {/* 이미지 업로드 */}
               <div>
-                <label htmlFor="review-image-url" className="block text-sm font-medium text-gray-700 mb-2">
-                  이미지 URL (선택사항)
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  이미지 첨부
                 </label>
-                <input
-                  id="review-image-url"
-                  type="text"
-                  value={newReview.imageUrl}
-                  onChange={e => setNewReview(prev => ({ ...prev, imageUrl: e.target.value }))}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  placeholder="이미지 URL을 입력하세요"
-                />
+                <div className="space-y-4">
+                  {/* 이미지 미리보기 */}
+                  {imagePreview.length > 0 && (
+                    <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                      <Image
+                        src={imagePreview[0]}
+                        alt="리뷰 이미지 미리보기"
+                        fill
+                        className="object-cover"
+                      />
+                      <button
+                        onClick={handleRemoveImage}
+                        className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 이미지 업로드 버튼 */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="flex items-center gap-2"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {isUploading ? "업로드 중..." : "이미지 선택"}
+                    </Button>
+                    {isUploading && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500"></div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* 제출 버튼 */}
