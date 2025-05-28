@@ -11,12 +11,12 @@ export interface Place {
   title: string
   address: string
   imageUrl: string
-  rating: number
+  rate: number
   openTime: string
   phoneNumber: string
   lat: number
   lon: number
   description: string
-  ratingCount: number
+  rateCount: number
   menu: MenuItem[]
 } 
