@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Search, Star, ChevronLeft, ChevronRight, MapPin, Heart, Compass, List, Navigation, ChevronUp } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useMobile } from "@/hooks/use-mobile"
@@ -41,7 +41,9 @@ export default function Home() {
   const fetchPlaces = async () => {
     try {
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes`, {
-      // const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/recommend?keyword=&option=location&lat=33.4996213&lon=126.5311884`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+        },
         withCredentials: true
       })
       console.log(response.data.data.content);
@@ -53,10 +55,97 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    fetchPlaces()
-  }, [])
+  // 카카오맵 초기화 및 마커 생성
+  const initializeMap = useCallback(() => {
+    if (!mapRef.current || !places.length) return
 
+    const options = {
+      center: new window.kakao.maps.LatLng(33.4996213, 126.5311884), // 제주시청
+      level: 6,
+    }
+    const newMap = new window.kakao.maps.Map(mapRef.current, options)
+    setMap(newMap)
+
+    // 지도 클릭 이벤트 추가
+    window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: any) {
+      const latlng = mouseEvent.latLng
+      
+      // 이전 클릭 마커 제거
+      if (clickedMarkerRef.current) {
+        clickedMarkerRef.current.setMap(null)
+        clickedMarkerRef.current = null
+      }
+
+      // 새로운 마커 생성 (클릭 시에는 별 모양 마커 유지)
+      const markerImage = new window.kakao.maps.MarkerImage(
+        "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
+        new window.kakao.maps.Size(24, 35)
+      )
+
+      const marker = new window.kakao.maps.Marker({
+        position: latlng,
+        image: markerImage,
+        zIndex: 3
+      })
+
+      marker.setMap(newMap)
+      clickedMarkerRef.current = marker
+
+      // 클릭한 위치의 주소 가져오기
+      const geocoder = new window.kakao.maps.services.Geocoder()
+      geocoder.coord2Address(latlng.getLng(), latlng.getLat(), (result: any, status: any) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          const roadAddress = result[0].road_address?.address_name
+          const address = result[0].address.address_name
+          setCurrentAddress(roadAddress || address)
+        }
+      })
+    })
+
+    // 모든 장소에 마커 생성 (기본 파란색 마커 사용)
+    const newMarkers = places.map(place => {
+      const position = new window.kakao.maps.LatLng(place.lat, place.lon)
+      
+      const marker = new window.kakao.maps.Marker({
+        position: position,
+        map: newMap
+      })
+
+      // 커스텀 오버레이 생성
+      const overlayContent = document.createElement('div')
+      overlayContent.className = 'bg-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium mb-4'
+      overlayContent.textContent = place.title
+
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: position,
+        content: overlayContent,
+        zIndex: 3,
+        yAnchor: 1.5
+      })
+
+      // 마커 클릭 이벤트
+      window.kakao.maps.event.addListener(marker, 'click', function() {
+        // 마커 위치로 지도 중심 이동 (애니메이션 효과 추가)
+        newMap.setCenter(position)
+        // 줌 레벨 조정
+        newMap.setLevel(3)
+        // 오버레이 표시
+        overlay.setMap(newMap)
+        setSelectedPlace(place)
+      })
+
+      // 다른 마커 클릭 시 현재 오버레이 숨기기
+      window.kakao.maps.event.addListener(newMap, 'click', function() {
+        overlay.setMap(null)
+      })
+
+      return marker
+    })
+
+    setMarkers(newMarkers)
+  }, [places])
+
+  // 카카오맵 스크립트 로드 및 초기화
   useEffect(() => {
     const kakaoMapScript = document.createElement("script")
     kakaoMapScript.async = true
@@ -65,111 +154,7 @@ export default function Home() {
 
     const onLoadKakaoAPI = () => {
       window.kakao.maps.load(() => {
-        if (mapRef.current) {
-          const options = {
-            center: new window.kakao.maps.LatLng(33.4996213, 126.5311884), // 제주시청
-            level: 6,
-          }
-          const newMap = new window.kakao.maps.Map(mapRef.current, options)
-          setMap(newMap)
-
-          // 지도 클릭 이벤트 추가
-          window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: any) {
-            const latlng = mouseEvent.latLng
-            
-            // 이전 클릭 마커 제거
-            if (clickedMarkerRef.current) {
-              clickedMarkerRef.current.setMap(null)
-              clickedMarkerRef.current = null
-            }
-
-            // 새로운 마커 생성
-            const markerImage = new window.kakao.maps.MarkerImage(
-              "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-              new window.kakao.maps.Size(24, 35)
-            )
-
-            const marker = new window.kakao.maps.Marker({
-              position: latlng,
-              image: markerImage,
-              zIndex: 3
-            })
-
-            marker.setMap(newMap)
-            clickedMarkerRef.current = marker
-
-            // 클릭한 위치의 주소 가져오기
-            const geocoder = new window.kakao.maps.services.Geocoder()
-            geocoder.coord2Address(latlng.getLng(), latlng.getLat(), (result: any, status: any) => {
-              if (status === window.kakao.maps.services.Status.OK) {
-                const roadAddress = result[0].road_address?.address_name
-                const address = result[0].address.address_name
-                setCurrentAddress(roadAddress || address)
-              }
-            })
-          })
-
-          const markerImage = new window.kakao.maps.MarkerImage(
-            "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-            new window.kakao.maps.Size(24, 35)
-          )
-
-          // 모든 장소에 마커 생성
-          places.forEach(place => {
-            console.log(place)
-            const position = new window.kakao.maps.LatLng(place.lat, place.lon)
-            
-            const marker = new window.kakao.maps.Marker({
-              position: position,
-              map: newMap,
-              image: markerImage
-            })
-
-            // 커스텀 오버레이 생성
-            const overlayContent = document.createElement('div')
-            overlayContent.className = 'bg-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium mb-4'
-            overlayContent.textContent = place.title
-
-            const overlay = new window.kakao.maps.CustomOverlay({
-              position: position,
-              content: overlayContent,
-              zIndex: 3
-            })
-
-            // 마커 클릭 이벤트
-            window.kakao.maps.event.addListener(marker, 'click', function() {
-              // 마커 위치로 지도 중심 이동
-              newMap.panTo(position)
-              // 줌 레벨 조정
-              newMap.setLevel(3)
-              // 오버레이 표시
-              overlay.setMap(newMap)
-              setSelectedPlace(place)
-            })
-
-            // 다른 마커 클릭 시 현재 오버레이 숨기기
-            window.kakao.maps.event.addListener(newMap, 'click', function() {
-              overlay.setMap(null)
-            })
-          })
-
-          // 마커 생성
-          const newMarkers = places.map(place => {
-            const marker = new window.kakao.maps.Marker({
-              position: new window.kakao.maps.LatLng(place.lat, place.lon),
-              title: place.title
-            })
-
-            // 마커 클릭 이벤트
-            window.kakao.maps.event.addListener(marker, 'click', () => {
-              setSelectedPlace(place)
-            })
-
-            return marker
-          })
-
-          setMarkers(newMarkers)
-        }
+        fetchPlaces()
       })
     }
 
@@ -178,8 +163,16 @@ export default function Home() {
     return () => {
       kakaoMapScript.removeEventListener("load", onLoadKakaoAPI)
     }
-  }, [places]) // places가 변경될 때마다 지도 업데이트
+  }, [])
 
+  // places가 변경될 때마다 지도 초기화
+  useEffect(() => {
+    if (window.kakao && window.kakao.maps) {
+      initializeMap()
+    }
+  }, [initializeMap])
+
+  // 마커 표시/숨김 처리
   useEffect(() => {
     if (!map) return
 
@@ -408,9 +401,9 @@ export default function Home() {
                           <h3 className="font-bold text-gray-900">{place.title}</h3>
                           <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium text-orange-600">{place.rating}</span>
+                            <span className="font-medium text-orange-600">{place.rate}</span>
                           </div>
-                          <span className="text-gray-500 text-sm">({place.ratingCount})</span>
+                          <span className="text-gray-500 text-sm">({place.rateCount})</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
@@ -493,9 +486,9 @@ export default function Home() {
                                 <h3 className="font-bold text-gray-900">{place.title}</h3>
                                 <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
                                   <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                  <span className="font-medium text-orange-600">{place.rating}</span>
+                                  <span className="font-medium text-orange-600">{place.rate}</span>
                                 </div>
-                                <span className="text-gray-500 text-sm">({place.ratingCount})</span>
+                                <span className="text-gray-500 text-sm">({place.rateCount})</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600 text-sm">
@@ -568,9 +561,9 @@ export default function Home() {
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
                       <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                      <span className="font-medium text-orange-600 text-sm">{selectedPlace?.rating}</span>
+                      <span className="font-medium text-orange-600 text-sm">{selectedPlace?.rate}</span>
                     </div>
-                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.ratingCount})</span>
+                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.rateCount})</span>
                   </div>
                   <p className="text-gray-600 text-base mb-4 leading-relaxed line-clamp-2">{selectedPlace?.description}</p>
                 </div>

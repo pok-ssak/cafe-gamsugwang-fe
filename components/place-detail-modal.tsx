@@ -2,36 +2,17 @@
 
 import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp } from "lucide-react"
 import Image from "next/image"
-import { Place } from "@/types/place"
+import { Place, MenuItem } from "@/types/place"
+import { Review } from "@/types/review"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import axios from "axios"
+import { ReviewWriteModal } from "./review-write-modal"
 
 interface PlaceDetailModalProps {
   place: Place | null
   onClose: () => void
-}
-
-interface MenuItem {
-  id: number
-  name: string
-  price: number
-  description: string
-  imageUrl?: string
-}
-
-interface Review {
-  id: number
-  userId: number
-  nickname: string
-  rating: number
-  content: string
-  createdAt: string
-  imageUrl?: string
-  likedByUser: boolean
-  likeCount: number
 }
 
 export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
@@ -59,14 +40,10 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     setIsLoadingReviews(true)
     try {
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/${place.id}/reviews`, {
-      // const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/reviews`, {
-        // params: {
-        //   placeId: place.id
-        // },
         withCredentials: true
       })
       console.log(response.data.data.content);
-      setReviews(response.data.data.content) // data.data.content로 수정
+      setReviews(response.data.data.content)
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
     } finally {
@@ -202,7 +179,6 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     }
 
     setShowReviewModal(true)
-    fetchReviews() // 리뷰 작성 모달 열 때 리뷰 목록 갱신
   }
 
   const handleSubmitReview = async () => {
@@ -349,9 +325,9 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                   <h2 className="text-2xl font-bold">{place.title}</h2>
                   <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium text-orange-600">{place.rating}</span>
+                    <span className="font-medium text-orange-600">{place.rate}</span>
                   </div>
-                  <span className="text-gray-500 text-sm">({place.ratingCount})</span>
+                  <span className="text-gray-500 text-sm">({place.rateCount})</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-600 text-sm">
                   <MapPin className="w-4 h-4" />
@@ -366,11 +342,11 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-2 text-gray-600 text-sm">
                 <Clock className="w-4 h-4" />
-                <span>영업시간: 09:00 - 22:00</span>
+                <span>영업시간: {place.openTime}</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600 text-sm">
                 <Phone className="w-4 h-4" />
-                <span>064-123-4567</span>
+                <span>{place.phoneNumber}</span>
               </div>
             </div>
 
@@ -511,123 +487,12 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
       </div>
 
       {/* 리뷰 작성 모달 */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">리뷰 작성</h3>
-              <button
-                onClick={() => setShowReviewModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-6">
-              {/* 에러 메시지 */}
-              {errorMessage && (
-                <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm">
-                  {errorMessage}
-                </div>
-              )}
-              
-              {/* 별점 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  별점
-                </label>
-                <div className="flex justify-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
-                      className="p-1"
-                    >
-                      <Star
-                        className={`w-8 h-8 ${star <= newReview.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                <div className="text-sm text-gray-500 mt-1 text-center">
-                  {newReview.rating}점 / 5점
-                </div>
-              </div>
-
-              {/* 리뷰 내용 */}
-              <div>
-                <label htmlFor="review-content" className="block text-sm font-medium text-gray-700 mb-2">
-                  리뷰 내용
-                </label>
-                <Textarea
-                  id="review-content"
-                  value={newReview.content}
-                  onChange={e => setNewReview(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="리뷰를 작성해주세요"
-                  className="min-h-[120px]"
-                />
-              </div>
-
-              {/* 이미지 업로드 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  이미지 첨부
-                </label>
-                <div className="space-y-4">
-                  {/* 이미지 미리보기 */}
-                  {imagePreview.length > 0 && (
-                    <div className="relative w-full h-32 rounded-lg overflow-hidden">
-                      <Image
-                        src={imagePreview[0]}
-                        alt="리뷰 이미지 미리보기"
-                        fill
-                        className="object-cover"
-                      />
-                      <button
-                        onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
-                      >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* 이미지 업로드 버튼 */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleImageUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className="flex items-center gap-2"
-                    >
-                      <Camera className="w-4 h-4" />
-                      {isUploading ? "업로드 중..." : "이미지 선택"}
-                    </Button>
-                    {isUploading && (
-                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500"></div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 제출 버튼 */}
-              <Button
-                onClick={handleSubmitReview}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                리뷰 등록
-              </Button>
-            </div>
-          </div>
-        </div>
+      {showReviewModal && place && (
+        <ReviewWriteModal
+          placeId={place.id}
+          onClose={() => setShowReviewModal(false)}
+          onReviewSubmit={fetchReviews}
+        />
       )}
     </div>
   )
