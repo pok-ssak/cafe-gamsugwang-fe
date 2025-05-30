@@ -33,6 +33,31 @@ export default function Login() {
     }
   }
 
+  const handleKakaoLogin = () => {
+    const REST_API_KEY = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
+    const REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI;
+    const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${REST_API_KEY}&redirect_uri=${REDIRECT_URI}`;
+  
+    window.location.href = kakaoAuthURL;
+  };
+
+  // TODO : Naver, Google 설정 정보 등록
+  const handleNaverLogin = () => {
+    const REST_API_KEY = process.env.NEXT_PUBLIC_NAVER_REST_API_KEY;
+    const REDIRECT_URI = process.env.NEXT_PUBLIC_NAVER_REDIRECT_URI;
+    const naverAuthURL = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${REST_API_KEY}&redirect_uri=${REDIRECT_URI}&state=random_state_string`;
+
+    window.location.href = naverAuthURL;
+  };
+
+  const handleGoogleLogin = () => {
+    const REST_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_REST_API_KEY;
+    const REDIRECT_URI = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI;
+    const googleAuthURL = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${REST_API_KEY}&redirect_uri=${REDIRECT_URI}&scope=openid%20email%20profile`;
+
+    window.location.href = googleAuthURL;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -182,7 +207,8 @@ export default function Login() {
             </div>
 
             <div className="mt-6 grid grid-cols-3 gap-3">
-              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50">
+              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50"
+                onClick={handleKakaoLogin}>
                 <Image
                   src="https://developers.kakao.com/assets/img/about/logos/kakaotalksharing/kakaotalk_sharing_btn_medium.png"
                   alt="카카오 로그인"
@@ -192,20 +218,22 @@ export default function Login() {
                   priority
                 />
               </button>
-              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50">
+              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50" 
+                onClick={handleNaverLogin}>
                 <Image
-                  src="https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png"
-                  alt="구글 로그인"
+                  src="/naver_logo.png"
+                  alt="네이버 로그인"
                   width={24}
                   height={24}
                   className="w-6 h-6"
                   priority
                 />
               </button>
-              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50">
+              <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50" 
+              onClick={handleGoogleLogin}> 
                 <Image
-                  src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
-                  alt="애플 로그인"
+                  src="https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png"
+                  alt="구글 로그인"
                   width={24}
                   height={24}
                   className="w-6 h-6"

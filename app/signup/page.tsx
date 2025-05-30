@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from 'next/navigation';
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Eye, EyeOff, Camera, X } from "lucide-react"
@@ -20,8 +21,10 @@ const INTEREST_KEYWORDS = [
 export default function Signup() {
   const router = useRouter()
   const { login } = useAuth()
-  const [step, setStep] = useState(1)
-  
+  const searchParams = useSearchParams();
+  const isOAuth = searchParams.get('oauth') === 'true';
+  const [step, setStep] = useState(isOAuth ? 2 : 1);
+
   // Step 1: 기본 정보
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
@@ -111,41 +114,57 @@ export default function Signup() {
   }
 
   const handleStep2Submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrorMessage("")
-
-
-    const body = {
-      email,
-      password,
-      nickname: formData.nickname,
-      keywords: formData.keywords.map(k => ({
-        word: `${k}`,
-        count: 0
-      }))
-      // profileImage: formData.profileImage
-    }
-    console.log(body)
+    e.preventDefault();
+    setErrorMessage("");
+  
+    const isOAuth = !email && !password; // email, password 없으면 OAuth 회원가입 판단
+  
     try {
-
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/auth/signup`,
-        body,
-        {
-          headers: {
-            // 'Content-Type': 'multipart/form-data'
-            'Content-Type': 'application/json'
+      const requestBody = isOAuth
+        ? {
+            nickname: formData.nickname,
+            keywords: formData.interests.map(k => ({
+              word: k,
+              count: 0
+            }))
+            // profileImage 포함 시 multipart/form-data 처리 필요
           }
-        }
-      )
+        : {
+            email,
+            password,
+            nickname: formData.nickname,
+            keywords: formData.interests.map(k => ({
+              word: {k},
+              count: 0
+            }))
+          };
 
-      const { accessToken } = response.data
-      login(accessToken)
-      router.push('/')
+          console.log(requestBody)
+  
+      const url = isOAuth
+        ? `${process.env.NEXT_PUBLIC_API_HOST}/auth/oauth/signup`
+        : `${process.env.NEXT_PUBLIC_API_HOST}/auth/signup`;
+
+      const token = isOAuth ? localStorage.getItem('accessToken') : null;
+
+      console.log(token);
+
+      const response = await axios.post(url, requestBody, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(isOAuth && token ? { Authorization: `Bearer ${token}` } : {}),
+          withCredentials: true
+        },
+      });
+  
+      const { accessToken } = response.data;
+      login(accessToken);
+      router.push("/");
     } catch (error: any) {
-      setErrorMessage(error.response?.data?.error?.message || '회원가입 중 오류가 발생했습니다.')
+      console.log(error)
+      setErrorMessage(error.response?.data?.error?.message || "회원가입 중 오류가 발생했습니다.");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
