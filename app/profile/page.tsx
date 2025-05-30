@@ -4,11 +4,43 @@ import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { LogOut } from "lucide-react"
+import { useEffect, useState } from "react"
+import axios from "axios"
 
 export default function Profile() {
   const router = useRouter()
   const { isAuthenticated, isLoading, logout } = useAuth()
+  const [profile, setProfile] = useState({
+    nickName: "",
+    email: "",
+    imageUrl: "",
+    bookmarkCount: 0,
+    reviewCount: 0
+  })
+  // const [isLoading, setIsLoading] = useState(true)
+  
+  const  fetchProfile = async () => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/users/profile`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      })
+      console.log(response.data)
+      setProfile(response.data)
+    } catch (error) {
+      console.error('프로필 로딩 실패');
+    } finally {
+      // setIsLoading(false)
+    }
+    
+    
 
+  }
+  useEffect(()=> {
+    fetchProfile() 
+  },[])
   const handleLogout = async () => {
     try {
       await logout()
@@ -45,31 +77,31 @@ export default function Profile() {
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full overflow-hidden">
               <img
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8YXZhdGFyfGVufDB8fDB8fHww"
+                src={profile.imageUrl}
                 alt="프로필 이미지"
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold mb-1">사용자 이름</h2>
-              <p className="text-gray-600">@username</p>
+              <h2 className="text-xl font-bold mb-1">{profile.nickName}</h2>
+              <p className="text-sm text-gray-600">{profile.email}</p>
             </div>
-            <Button variant="outline" className="flex-shrink-0">
+            <Button 
+              variant="outline" 
+              className="flex-shrink-0"
+              onClick={() => router.push("/profile/edit")}
+            >
               프로필 수정
             </Button>
           </div>
           <div className="flex gap-6 mt-6">
             <div className="text-center">
-              <div className="font-bold text-lg">123</div>
-              <div className="text-sm text-gray-600">리뷰</div>
+              <div className="font-bold text-lg">{profile.reviewCount}</div>
+              <div className="text-sm text-gray-600">내 리뷰</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-lg">456</div>
-              <div className="text-sm text-gray-600">팔로워</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-lg">789</div>
-              <div className="text-sm text-gray-600">팔로잉</div>
+              <div className="font-bold text-lg">{profile.bookmarkCount}</div>
+              <div className="text-sm text-gray-600">북마크</div>
             </div>
           </div>
         </div>
@@ -101,6 +133,20 @@ export default function Profile() {
             <span>로그아웃</span>
             <span className="text-red-400">→</span>
           </button>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="text-center text-sm text-gray-500">
+            <p>© 2025 카페감수광. All rights reserved.</p>
+            <div className="mt-2 space-x-4">
+              <a href="/terms" className="hover:text-gray-700">이용약관</a>
+              <a href="/privacy" className="hover:text-gray-700">개인정보처리방침</a>
+              <a href="/contact" className="hover:text-gray-700">문의하기</a>
+            </div>
+          </div>
         </div>
       </div>
     </div>

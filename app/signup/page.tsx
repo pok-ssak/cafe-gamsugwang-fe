@@ -10,6 +10,7 @@ import Link from "next/link"
 import Image from "next/image"
 import axios from "axios"
 import { useAuth } from "@/contexts/AuthContext"
+import { kMaxLength } from "buffer"
 
 const INTEREST_KEYWORDS = [
   "아메리카노", "라떼", "에스프레소", "콜드브루", "디저트",
@@ -29,15 +30,16 @@ export default function Signup() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [passwordConfirm, setPasswordConfirm] = useState("")
-  const [isEmailVerified, setIsEmailVerified] = useState(true)
-  const [isVerifying, setIsVerifying] = useState(true)
+  const [isEmailVerified, setIsEmailVerified] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
   // Step 2: 추가 정보
   const [formData, setFormData] = useState({
     nickname: "",
     profileImage: null as File | null,
-    interests: [] as string[],
+    keywords
+    : [] as string[],
   })
   const [previewUrl, setPreviewUrl] = useState<string>("")
 
@@ -60,10 +62,16 @@ export default function Signup() {
 
   const toggleInterest = (keyword: string) => {
     setFormData(prev => {
-      const interests = prev.interests.includes(keyword)
-        ? prev.interests.filter(k => k !== keyword)
-        : [...prev.interests, keyword]
-      return { ...prev, interests }
+      const keywords
+       = prev.keywords
+      .includes(keyword)
+        ? prev.keywords
+        .filter(k => k !== keyword)
+        : [...prev.keywords
+          , keyword]
+      return { ...prev, keywords
+
+       }
     })
   }
 
@@ -77,8 +85,8 @@ export default function Signup() {
     setErrorMessage("")
     try {
       await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/auth/verify-email`,
-        { email }
+        `${process.env.NEXT_PUBLIC_API_HOST}/auth/email-validate`,
+        { email: email }
       )
       setIsEmailVerified(true)
     } catch (error: any) {
@@ -343,11 +351,14 @@ export default function Signup() {
                       type="button"
                       onClick={() => toggleInterest(keyword)}
                       className={`px-3 py-1 rounded-full text-sm ${
-                        formData.interests.includes(keyword)
+                        formData.keywords
+                        .includes(keyword)
                           ? "bg-orange-500 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
-                      disabled={!formData.interests.includes(keyword) && formData.interests.length >= 5}
+                      disabled={!formData.keywords
+                        .includes(keyword) && formData.keywords
+                        .length >= 5}
                     >
                       {keyword}
                     </button>
