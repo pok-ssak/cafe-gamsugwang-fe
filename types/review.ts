@@ -3,6 +3,7 @@ export interface Review {
   userId: number
   nickname: string
   rating: number
+  reviewCount: number
   content: string
   createdAt: string
   imageUrl?: string

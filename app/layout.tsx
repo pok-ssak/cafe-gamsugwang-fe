@@ -23,7 +23,7 @@ export default function RootLayout({
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <AuthProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            <main className="flex-1 relative overflow-y-auto pb-16">{children}</main>
+            <main className="flex-1 relative overflow-y-auto">{children}</main>
             <BottomNavigation />
           </ThemeProvider>
         </AuthProvider>

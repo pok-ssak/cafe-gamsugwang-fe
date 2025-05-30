@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { Search, Star, ChevronLeft, ChevronRight, MapPin, Heart, Compass, List, Navigation, ChevronUp } from "lucide-react"
+import { Search, Star, ChevronLeft, ChevronRight, MapPin, Heart, Compass, List, Navigation, ChevronUp, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
@@ -9,6 +9,7 @@ import { Place } from "@/types/place"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { Button } from "@/components/ui/button"
 import axios from "axios"
+import { FALLBACK_IMAGE_URL } from "./constants"
 
 declare global {
   interface Window {
@@ -36,18 +37,75 @@ export default function Home() {
   const [currentLocationMarker, setCurrentLocationMarker] = useState<any>(null)
   const [places, setPlaces] = useState<Place[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [autoCompleteResults, setAutoCompleteResults] = useState<{id:number,title:string}[]>([])
+  const [isLoadingAutoComplete, setIsLoadingAutoComplete] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [keywordList, setKeywordList] = useState<string[]>([])
+  const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
 
-  // 카페 목록 가져오기
-  const fetchPlaces = async () => {
+  // 인기 카페 목록 가져오기
+  const fetchPopularPlaces = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/recommend`, {
+        params: {
+          option: "location",
+          lat: 33.49778542665778,
+          lon: 126.53172072809313,
+          keyword: "",
+          limit: 5
+        },
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`
         },
         withCredentials: true
       })
-      console.log(response.data.data.content);
-      setPlaces(response.data.data.content)
+      console.log('Popular places response:', response.data.data)
+      setPlaces(response.data.data)
+      
+      // 키워드 리스트 업데이트
+      const keywords = response.data.data.flatMap((place: Place) => 
+        (place.keywordList || []).map(k => k.keyword)
+      )
+      setKeywordList(Array.from(new Set(keywords)))
+    } catch (error) {
+      console.error('Failed to fetch popular places:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 카페 목록 가져오기
+  const fetchPlaces = async (option?: string, keyword?: string) => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/search`, {
+        params: {
+          query: keyword
+        },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+        },
+        withCredentials: true
+      })
+      console.log(response.data);
+      setPlaces(response.data.data)
+      setIsSearchFocused(false)
+
+      // 키워드 리스트 업데이트
+      const keywords = response.data.data.flatMap((place: Place) => 
+        (place.keywordList || []).map(k => k.keyword)
+      )
+      setKeywordList(Array.from(new Set(keywords)))
+
+      // 검색 결과가 있고 지도가 초기화되어 있다면, 첫 번째 장소로 지도 중심 이동
+      if (response.data.data.length > 0 && map) {
+        const firstPlace = response.data.data[0]
+        const position = new window.kakao.maps.LatLng(firstPlace.lat, firstPlace.lon)
+        map.setCenter(position)
+        map.setLevel(3)
+      }
     } catch (error) {
       console.error('Failed to fetch places:', error)
     } finally {
@@ -55,12 +113,123 @@ export default function Home() {
     }
   }
 
+  // 자동완성 검색
+  const fetchAutoComplete = async (keyword: string) => {
+    if (!keyword.trim()) {
+      setAutoCompleteResults([])
+      return
+    }
+
+    try {
+      setIsLoadingAutoComplete(true)
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/auto-complete`, {
+        params: { keyword },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+        },
+        withCredentials: true
+      })
+      console.log(response.data);  
+      setAutoCompleteResults(response.data)
+    } catch (error) {
+      console.error('Failed to fetch auto-complete:', error)
+      setAutoCompleteResults([])
+    } finally {
+      setIsLoadingAutoComplete(false)
+    }
+  }
+
+  // 검색어 변경 핸들러
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+
+    // 이전 타이머가 있다면 제거
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // 1초 후에 자동완성 검색 실행
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchAutoComplete(value)
+    }, 1000)
+  }
+
+  // 키보드 네비게이션 핸들러
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isSearchFocused || autoCompleteResults.length === 0) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setSelectedIndex(prev => 
+          prev < autoCompleteResults.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : prev)
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (selectedIndex >= 0) {
+          handleAutoCompleteSelect(autoCompleteResults[selectedIndex].title)
+        } else {
+          handleSearch(e)
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        setIsSearchFocused(false)
+        setAutoCompleteResults([])
+        setSelectedIndex(-1)
+        break
+    }
+  }
+
+  // 검색창 포커스 해제 시 선택 인덱스 초기화
+  const handleSearchBlur = () => {
+    setTimeout(() => {
+      setSelectedIndex(-1)
+    }, 200)
+  }
+
+  // 자동완성 항목 선택
+  const handleAutoCompleteSelect = (title: string) => {
+    setSearchQuery(title)
+    setAutoCompleteResults([])
+    setSelectedIndex(-1)
+    fetchPlaces("keyword", title)
+  }
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchPlaces("keyword",searchQuery)
+  }
+
   // 카카오맵 초기화 및 마커 생성
   const initializeMap = useCallback(() => {
-    if (!mapRef.current || !places.length) return
+    if (!mapRef.current) return
+
+    // 기본 좌표 (제주시청)
+    const defaultPosition = new window.kakao.maps.LatLng(33.4996213, 126.5311884)
+    
+    // places 배열의 첫 번째 요소가 있으면 그 좌표 사용, 없으면 기본 좌표 사용
+    const centerPosition = places.length > 0 
+      ? new window.kakao.maps.LatLng(places[0].lat, places[0].lon)
+      : defaultPosition
 
     const options = {
-      center: new window.kakao.maps.LatLng(33.4996213, 126.5311884), // 제주시청
+      center: centerPosition,
       level: 6,
     }
     const newMap = new window.kakao.maps.Map(mapRef.current, options)
@@ -105,7 +274,6 @@ export default function Home() {
     // 모든 장소에 마커 생성 (기본 파란색 마커 사용)
     const newMarkers = places.map(place => {
       const position = new window.kakao.maps.LatLng(place.lat, place.lon)
-      
       const marker = new window.kakao.maps.Marker({
         position: position,
         map: newMap
@@ -154,7 +322,7 @@ export default function Home() {
 
     const onLoadKakaoAPI = () => {
       window.kakao.maps.load(() => {
-        fetchPlaces()
+        fetchPopularPlaces() // 초기 로드시 인기 카페 목록 가져오기
       })
     }
 
@@ -311,13 +479,76 @@ export default function Home() {
     }
   }
 
+  const toggleKeywords = (placeId: number) => {
+    setExpandedKeywords(prev => ({
+      ...prev,
+      [placeId]: !prev[placeId]
+    }))
+  }
+
   return (
     <div className="relative w-full h-screen">
-      <div className="absolute top-4 left-4 right-4 z-30">
-        <div className="relative">
-          <Input className="pl-10 pr-4 py-2 bg-white rounded-full shadow-lg" placeholder="검색어를 입력하세요" />
+      {/* 검색 오버레이 */}
+      {isSearchFocused && (
+        <div className="fixed inset-0 bg-white z-40" />
+      )}
+      <div className="absolute top-4 left-4 right-4 z-50">
+        <form onSubmit={handleSearch} className="relative">
+          <Input 
+            className="pl-10 pr-10 py-2 bg-white rounded-full shadow-lg" 
+            placeholder="검색어를 입력하세요" 
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={handleSearchBlur}
+            onKeyDown={handleKeyDown}
+          />
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-        </div>
+          {isSearchFocused && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchFocused(false)
+                setSearchQuery("")
+                setAutoCompleteResults([])
+                setSelectedIndex(-1)
+              }}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          )}
+        </form>
+
+        {/* 자동완성 결과 */}
+        {isSearchFocused && (searchQuery.trim() || isLoadingAutoComplete) && (
+          <div className="absolute left-0 right-0 mt-16 bg-white rounded-xl overflow-hidden">
+            {isLoadingAutoComplete ? (
+              <div className="p-4 text-center text-gray-500">
+                검색 중...
+              </div>
+            ) : autoCompleteResults.length > 0 ? (
+              <div className="overflow-y-auto">
+                {autoCompleteResults.map((result, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAutoCompleteSelect(result.title)}
+                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-2 border-b last:border-b-0 ${
+                      index === selectedIndex ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <Search className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-700">{result.title}</span>
+                  </button>
+                ))}
+              </div>
+            ) : searchQuery.trim() ? (
+              <div className="p-4 text-center text-gray-500">
+                검색 결과가 없습니다
+              </div>
+            ) : null}
+          </div>
+        )}
         <div className="relative my-1">
           {/* 왼쪽 스크롤 버튼 */}
           <button 
@@ -333,12 +564,29 @@ export default function Home() {
             className="flex overflow-x-auto scrollbar-hide px-4 py-2"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">카페</button>
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">맛집</button>
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">관광지</button>
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">숙소</button>
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">쇼핑</button>
-            <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">액티비티</button>
+            {keywordList.length > 0 ? (
+              keywordList.map((keyword, index) => (
+                <button 
+                  key={index}
+                  className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm"
+                  onClick={() => {
+                    setSearchQuery(keyword)
+                    fetchPlaces("keyword", keyword)
+                  }}
+                >
+                  {keyword}
+                </button>
+              ))
+            ) : (
+              <>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">카페</button>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">맛집</button>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">관광지</button>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">숙소</button>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">쇼핑</button>
+                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">액티비티</button>
+              </>
+            )}
           </div>
 
           {/* 오른쪽 스크롤 버튼 */}
@@ -390,9 +638,13 @@ export default function Home() {
                   <div className="flex gap-4">
                     <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
                       <img 
-                        src={place.imageUrl} 
+                        src={place.imageUrl || FALLBACK_IMAGE_URL} 
                         alt={place.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = FALLBACK_IMAGE_URL;
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -403,13 +655,37 @@ export default function Home() {
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                             <span className="font-medium text-orange-600">{place.rate}</span>
                           </div>
-                          <span className="text-gray-500 text-sm">({place.rateCount})</span>
+                          <span className="text-gray-500 text-sm">({place.reviewCount})</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <MapPin className="w-4 h-4" />
                         <span className="truncate">{place.address}</span>
                       </div>
+                      {place.keywordList && place.keywordList.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1 flex flex-wrap gap-1">
+                            {place.keywordList
+                              .slice(0, expandedKeywords[place.id] ? undefined : 5)
+                              .map((keyword, index) => (
+                                <span 
+                                  key={index}
+                                  className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                >
+                                  {keyword.keyword}
+                                </span>
+                              ))}
+                          </div>
+                          {place.keywordList.length > 5 && (
+                            <button
+                              onClick={() => toggleKeywords(place.id)}
+                              className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
+                            >
+                              {expandedKeywords[place.id] ? '접기' : '더보기'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -475,9 +751,13 @@ export default function Home() {
                         <div className="flex gap-4">
                           <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
                             <img 
-                              src={place.imageUrl} 
+                              src={place.imageUrl || FALLBACK_IMAGE_URL} 
                               alt={place.title}
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = FALLBACK_IMAGE_URL;
+                              }}
                             />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -488,13 +768,37 @@ export default function Home() {
                                   <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                                   <span className="font-medium text-orange-600">{place.rate}</span>
                                 </div>
-                                <span className="text-gray-500 text-sm">({place.rateCount})</span>
+                                <span className="text-gray-500 text-sm">({place.reviewCount})</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600 text-sm">
                               <MapPin className="w-4 h-4" />
                               <span className="truncate">{place.address}</span>
                             </div>
+                            {place.keywordList && place.keywordList.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                <div className="flex-1 flex flex-wrap gap-1">
+                                  {place.keywordList
+                                    .slice(0, expandedKeywords[place.id] ? undefined : 5)
+                                    .map((keyword, index) => (
+                                      <span 
+                                        key={index}
+                                        className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                      >
+                                        {keyword.keyword}
+                                      </span>
+                                    ))}
+                                </div>
+                                {place.keywordList.length > 5 && (
+                                  <button
+                                    onClick={() => toggleKeywords(place.id)}
+                                    className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
+                                  >
+                                    {expandedKeywords[place.id] ? '접기' : '더보기'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -563,16 +867,23 @@ export default function Home() {
                       <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                       <span className="font-medium text-orange-600 text-sm">{selectedPlace?.rate}</span>
                     </div>
-                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.rateCount})</span>
+                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.reviewCount})</span>
                   </div>
-                  <p className="text-gray-600 text-base mb-4 leading-relaxed line-clamp-2">{selectedPlace?.description}</p>
+                  <div className="flex items-center gap-2 text-gray-600 text-sm">
+                    <MapPin className="w-4 h-4" />
+                    <span className="truncate">{selectedPlace?.address}</span>
+                  </div>
                 </div>
                 {/* 오른쪽 이미지 영역 */}
                 <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
                   <img 
-                    src={selectedPlace?.imageUrl} 
+                    src={selectedPlace?.imageUrl || FALLBACK_IMAGE_URL} 
                     alt={selectedPlace?.title}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = FALLBACK_IMAGE_URL;
+                    }}
                   />
                 </div>
               </div>
@@ -594,7 +905,6 @@ export default function Home() {
           place={selectedPlace} 
           onClose={() => {
             setShowModal(false)
-            setSelectedPlace(null)
           }} 
         />
       )}

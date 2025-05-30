@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp } from "lucide-react"
+import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp, Pencil } from "lucide-react"
 import Image from "next/image"
 import { Place, MenuItem } from "@/types/place"
 import { Review } from "@/types/review"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import axios from "axios"
 import { ReviewWriteModal } from "./review-write-modal"
+import { FALLBACK_IMAGE_URL } from "@/app/constants"
 
 interface PlaceDetailModalProps {
   place: Place | null
@@ -22,6 +23,8 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+  const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false)
   const [newReview, setNewReview] = useState({
     content: "",
     imageUrl: "",
@@ -42,7 +45,7 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/${place.id}/reviews`, {
         withCredentials: true
       })
-      console.log(response.data.data.content);
+      
       setReviews(response.data.data.content)
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
@@ -279,6 +282,39 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     }
   }
 
+  // 북마크 토글 함수
+  const handleBookmarkToggle = async () => {
+    if (!place) return
+
+    try {
+      setIsBookmarkLoading(true)
+      const accessToken = localStorage.getItem('accessToken')
+      if (!accessToken) {
+        if (confirm("북마크를 추가하려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
+          router.push("/login")
+        }
+        return
+      }
+
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          },
+          withCredentials: true
+        }
+      )
+
+      setIsBookmarked(!isBookmarked)
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error)
+    } finally {
+      setIsBookmarkLoading(false)
+    }
+  }
+
   if (!place) return null
 
   return (
@@ -310,10 +346,14 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
           <div className="relative">
             <div className="relative h-48 w-full">
               <Image
-                src={place.imageUrl}
+                src={place.imageUrl || FALLBACK_IMAGE_URL}
                 alt={place.title}
                 fill
                 className="object-cover rounded-t-2xl"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = FALLBACK_IMAGE_URL;
+                }}
               />
             </div>
           </div>
@@ -327,15 +367,20 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                     <span className="font-medium text-orange-600">{place.rate}</span>
                   </div>
-                  <span className="text-gray-500 text-sm">({place.rateCount})</span>
+                  <span className="text-gray-500 text-sm">({place.reviewCount})</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-600 text-sm">
                   <MapPin className="w-4 h-4" />
                   <span>{place.address}</span>
                 </div>
+                
               </div>
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Heart className="w-6 h-6 text-gray-400 hover:text-red-500" />
+              <button 
+                className={`p-2 hover:bg-gray-100 rounded-full transition-colors ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={handleBookmarkToggle}
+                disabled={isBookmarkLoading}
+              >
+                <Heart className={`w-6 h-6 ${isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
               </button>
             </div>
 
@@ -349,7 +394,18 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                 <span>{place.phoneNumber}</span>
               </div>
             </div>
-
+            {place.keywordList && place.keywordList.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {place.keywordList.map((keyword, index) => (
+                      <span 
+                        key={index}
+                        className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                      >
+                        {keyword.keyword}
+                      </span>
+                    ))}
+                  </div>
+                )}
             <p className="text-gray-600 leading-relaxed mb-6">
               {place.description}
             </p>
@@ -366,17 +422,26 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
               <Button 
                 variant="outline" 
                 className="flex-1 text-sm h-9"
-                onClick={handleReviewClick}
+                onClick={() => {
+                  window.open(`https://place.map.kakao.com/${place.id}#comment`, '_blank')
+                }}
               >
-                <Star className="w-4 h-4 mr-1" />
-                리뷰 작성
+                <MessageSquare className="w-4 h-4 mr-1" />
+                후기보기
               </Button>
             </div>
 
             {/* 리뷰 섹션 */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">리뷰</h3>
+                <h3 className="text-lg font-bold">감수광 리뷰</h3>
+                <Button 
+                  variant="outline" 
+                  className="text-sm h-8 w-8 p-0"
+                  onClick={handleReviewClick}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
               </div>
               {isLoadingReviews ? (
                 <div className="text-center py-8 text-gray-500">
@@ -422,10 +487,14 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                         {review.imageUrl && (review.imageUrl.startsWith('https://') || review.imageUrl.startsWith('http://') || review.imageUrl.startsWith('/')) && (
                           <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
                             <Image
-                              src={review.imageUrl}
+                              src={review.imageUrl || FALLBACK_IMAGE_URL}
                               alt="리뷰 이미지"
                               fill
                               className="object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = FALLBACK_IMAGE_URL;
+                              }}
                             />
                           </div>
                         )}
@@ -457,10 +526,14 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
                       <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
                         {item.imageUrl ? (
                           <Image
-                            src={item.imageUrl}
+                            src={item.imageUrl || FALLBACK_IMAGE_URL}
                             alt={item.name}
                             fill
                             className="object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = FALLBACK_IMAGE_URL;
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
