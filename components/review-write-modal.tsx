@@ -17,7 +17,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
   const [newReview, setNewReview] = useState({
     content: "",
     imageUrl: "",
-    rating: 5
+    rate: 5
   })
   const [imagePreview, setImagePreview] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string>("")
@@ -83,7 +83,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
         cafeId: placeId,
         content: newReview.content,
         imageUrl: newReview.imageUrl,
-        rating: newReview.rating
+        rating: newReview.rate
       }
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_HOST}/reviews`,
@@ -138,13 +138,13 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
                   className="p-1"
                 >
                   <Star
-                    className={`w-8 h-8 ${star <= newReview.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                    className={`w-8 h-8 ${star <= newReview.rate ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
                   />
                 </button>
               ))}
             </div>
             <div className="text-sm text-gray-500 mt-1 text-center">
-              {newReview.rating}점 / 5점
+              {newReview.rate}점 / 5점
             </div>
           </div>
 

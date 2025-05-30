@@ -3,6 +3,7 @@
 import { Heart, MessageCircle, Bookmark, Share2, Filter } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
+import { FALLBACK_IMAGE_URL } from "../constants"
 
 const FEED_ITEMS = [
   {
@@ -102,9 +103,13 @@ export default function Feed() {
             <div className="p-4 border-b">
               <div className="flex items-center gap-3">
                 <img 
-                  src={item.cafe.image} 
+                  src={item.cafe.image || FALLBACK_IMAGE_URL} 
                   alt={item.cafe.name}
                   className="w-12 h-12 rounded-lg object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = FALLBACK_IMAGE_URL;
+                  }}
                 />
                 <div>
                   <h3 className="font-bold text-gray-900">{item.cafe.name}</h3>
@@ -117,9 +122,13 @@ export default function Feed() {
             <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
                 <img 
-                  src={item.user.avatar} 
+                  src={item.user.avatar || FALLBACK_IMAGE_URL} 
                   alt={item.user.name}
                   className="w-10 h-10 rounded-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = FALLBACK_IMAGE_URL;
+                  }}
                 />
                 <div>
                   <p className="font-medium text-gray-900">{item.user.name}</p>
@@ -138,9 +147,13 @@ export default function Feed() {
                   {item.images.map((image, index) => (
                     <img 
                       key={index}
-                      src={image} 
+                      src={image || FALLBACK_IMAGE_URL} 
                       alt={`리뷰 이미지 ${index + 1}`}
                       className="w-full h-48 object-cover rounded-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = FALLBACK_IMAGE_URL;
+                      }}
                     />
                   ))}
                 </div>

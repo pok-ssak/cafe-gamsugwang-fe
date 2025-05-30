@@ -17,6 +17,7 @@ export interface Place {
   lat: number
   lon: number
   description: string
-  rateCount: number
+  reviewCount: number
   menu: MenuItem[]
+  keywordList?: string[]
 } 
