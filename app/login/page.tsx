@@ -26,7 +26,7 @@ export default function Login() {
     setIsTestMode(checked)
     if (checked) {
       setEmail("test@example.com")
-      setPassword("test1234")
+      setPassword("asd")
     } else {
       setEmail("")
       setPassword("")
@@ -61,16 +61,6 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (isTestMode) {
-      // 테스트 모드일 경우 임의의 accessToken을 쿠키에 저장
-      const testToken = "test_access_token_" + Math.random().toString(36).substring(7)
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 7) // 7일 후 만료
-      document.cookie = `accessToken=${testToken}; expires=${expires.toUTCString()}; path=/`
-      login(testToken)
-      router.push(from)
-      return
-    }
     console.log(email)
     console.log(password)
     try {
