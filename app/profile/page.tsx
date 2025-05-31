@@ -110,12 +110,18 @@ export default function Profile() {
       {/* 메뉴 리스트 */}
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <button className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between">
+          <button 
+            onClick={() => router.push('/profile/reviews')}
+            className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between"
+          >
             <span>내 리뷰</span>
             <span className="text-gray-400">→</span>
           </button>
-          <button className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between">
-            <span>저장한 장소</span>
+          <button 
+            onClick={() => router.push('/profile/bookmarks')}
+            className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between"
+          >
+            <span>북마크</span>
             <span className="text-gray-400">→</span>
           </button>
           <button className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between">
@@ -123,7 +129,7 @@ export default function Profile() {
             <span className="text-gray-400">→</span>
           </button>
           <button className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between">
-            <span>고객센터</span>
+            <span>크레딧</span>
             <span className="text-gray-400">→</span>
           </button>
           <button 

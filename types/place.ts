@@ -18,6 +18,7 @@ export interface Place {
   lon: number
   description: string
   reviewCount: number
-  menu: MenuItem[]
-  keywordList?: string[]
+  isBookmarked?: boolean
+  keywordList?: { keyword: string }[]
+  menu?: MenuItem[]
 } 

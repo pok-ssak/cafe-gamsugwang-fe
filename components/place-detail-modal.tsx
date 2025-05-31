@@ -14,16 +14,17 @@ import { FALLBACK_IMAGE_URL } from "@/app/constants"
 interface PlaceDetailModalProps {
   place: Place | null
   onClose: () => void
+  onBookmarkChange?: (placeId: number, isBookmarked: boolean) => void
 }
 
-export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
+export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDetailModalProps) {
   const router = useRouter()
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isBookmarked, setIsBookmarked] = useState(place?.isBookmarked || false)
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false)
   const [newReview, setNewReview] = useState({
     content: "",
@@ -59,6 +60,14 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
     if (place) {
       fetchReviews()
     }
+  }, [place])
+
+  // place가 변경될 때 북마크 상태 업데이트
+  useEffect(() => {
+    if (place) {
+      setIsBookmarked(place.isBookmarked || false)
+    }
+    console.log(place)
   }, [place])
 
   // 더미 메뉴 데이터 생성
@@ -296,18 +305,35 @@ export function PlaceDetailModal({ place, onClose }: PlaceDetailModalProps) {
         return
       }
 
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          },
-          withCredentials: true
-        }
-      )
+      if (isBookmarked) {
+        // 북마크 삭제
+        await axios.delete(
+          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            },
+            withCredentials: true
+          }
+        )
+      } else {
+        // 북마크 추가
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            },
+            withCredentials: true
+          }
+        )
+      }
 
-      setIsBookmarked(!isBookmarked)
+      const newBookmarkState = !isBookmarked
+      setIsBookmarked(newBookmarkState)
+      console.log('Modal - onBookmarkChange called with:', { placeId: place.id, isBookmarked: newBookmarkState })
+      onBookmarkChange?.(place.id, newBookmarkState)
     } catch (error) {
       console.error('Failed to toggle bookmark:', error)
     } finally {

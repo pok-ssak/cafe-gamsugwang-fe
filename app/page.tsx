@@ -39,12 +39,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearchFocused, setIsSearchFocused] = useState(false)
-  const [autoCompleteResults, setAutoCompleteResults] = useState<{id:number,title:string}[]>([])
+  const [autoCompleteResults, setAutoCompleteResults] = useState<{id: number, title: string}[]>([])
   const [isLoadingAutoComplete, setIsLoadingAutoComplete] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [keywordList, setKeywordList] = useState<string[]>([])
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
+  const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -62,7 +64,7 @@ export default function Home() {
         },
         withCredentials: true
       })
-      console.log('Popular places response:', response.data.data)
+      console.log(response.data.data)
       setPlaces(response.data.data)
       
       // 키워드 리스트 업데이트
@@ -195,11 +197,11 @@ export default function Home() {
   }
 
   // 자동완성 항목 선택
-  const handleAutoCompleteSelect = (title: string) => {
-    setSearchQuery(title)
+  const handleAutoCompleteSelect = (keyword: string) => {
+    setSearchQuery(keyword)
     setAutoCompleteResults([])
     setSelectedIndex(-1)
-    fetchPlaces("keyword", title)
+    handleSearch(new Event('submit') as any)
   }
 
   // 컴포넌트 언마운트 시 타이머 정리
@@ -486,6 +488,69 @@ export default function Home() {
     }))
   }
 
+  const handleCardBookmarkToggle = async (placeId: number, e: React.MouseEvent) => {
+    e.stopPropagation() // 카드 클릭 이벤트 방지
+
+    try {
+      const accessToken = localStorage.getItem('accessToken')
+      if (!accessToken) {
+        if (confirm("북마크를 추가하려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
+          router.push("/login")
+        }
+        return
+      }
+
+      const place = places.find(p => p.id === placeId)
+      if (!place) return
+
+      if (place.isBookmarked) {
+        // 북마크 삭제
+        await axios.delete(
+          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            },
+            withCredentials: true
+          }
+        )
+      } else {
+        // 북마크 추가
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            },
+            withCredentials: true
+          }
+        )
+      }
+
+      // places 배열 업데이트
+      setPlaces(prevPlaces => 
+        prevPlaces.map(p => 
+          p.id === placeId 
+            ? { ...p, isBookmarked: !p.isBookmarked } 
+            : p
+        )
+      )
+
+      // selectedPlace가 현재 토글한 장소라면 함께 업데이트
+      if (selectedPlace?.id === placeId) {
+        setSelectedPlace(prev => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null)
+      }
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error)
+    }
+  }
+
+  // places 배열이 변경될 때마다 실행
+  useEffect(() => {
+    console.log("places updated:", places)
+  }, [places])
+
   return (
     <div className="relative w-full h-screen">
       {/* 검색 오버레이 */}
@@ -579,12 +644,7 @@ export default function Home() {
               ))
             ) : (
               <>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">카페</button>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">맛집</button>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">관광지</button>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">숙소</button>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">쇼핑</button>
-                <button className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm">액티비티</button>
+                
               </>
             )}
           </div>
@@ -649,14 +709,19 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-gray-900">{place.title}</h3>
-                          <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
-                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium text-orange-600">{place.rate}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h2 className="text-lg font-bold truncate">{place.title}</h2>
+                          <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
+                            <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
                           </div>
-                          <span className="text-gray-500 text-sm">({place.reviewCount})</span>
+                          <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
                         </div>
+                        <button 
+                          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          onClick={(e) => handleCardBookmarkToggle(place.id, e)}
+                        >
+                          <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <MapPin className="w-4 h-4" />
@@ -762,14 +827,19 @@ export default function Home() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-bold text-gray-900">{place.title}</h3>
-                                <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
-                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                  <span className="font-medium text-orange-600">{place.rate}</span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <h2 className="text-lg font-bold truncate">{place.title}</h2>
+                                <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
+                                  <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
                                 </div>
-                                <span className="text-gray-500 text-sm">({place.reviewCount})</span>
+                                <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
                               </div>
+                              <button 
+                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                onClick={(e) => handleCardBookmarkToggle(place.id, e)}
+                              >
+                                <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                              </button>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600 text-sm">
                               <MapPin className="w-4 h-4" />
@@ -858,8 +928,14 @@ export default function Home() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold truncate">{selectedPlace?.title}</h2>
-                    <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
-                      <Heart className="w-6 h-6 text-gray-400 hover:text-red-500" />
+                    <button 
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCardBookmarkToggle(selectedPlace.id, e)
+                      }}
+                    >
+                      <Heart className={`w-6 h-6 ${selectedPlace?.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -905,7 +981,17 @@ export default function Home() {
           place={selectedPlace} 
           onClose={() => {
             setShowModal(false)
-          }} 
+          }}
+          onBookmarkChange={(placeId, isBookmarked) => {
+            console.log('Home - onBookmarkChange received:', { placeId, isBookmarked })
+            setPlaces(prevPlaces => 
+              prevPlaces.map(place => 
+                place.id === placeId 
+                  ? { ...place, isBookmarked } 
+                  : place
+              )
+            )
+          }}
         />
       )}
 

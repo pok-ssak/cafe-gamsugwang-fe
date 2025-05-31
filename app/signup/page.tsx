@@ -123,7 +123,7 @@ export default function Signup() {
       const requestBody = isOAuth
         ? {
             nickname: formData.nickname,
-            keywords: formData.interests.map(k => ({
+            keywords: formData.keywords.map(k => ({
               word: k,
               count: 0
             }))
@@ -133,7 +133,7 @@ export default function Signup() {
             email,
             password,
             nickname: formData.nickname,
-            keywords: formData.interests.map(k => ({
+            keywords: formData.keywords.map(k => ({
               word: {k},
               count: 0
             }))
