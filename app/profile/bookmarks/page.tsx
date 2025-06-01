@@ -23,7 +23,7 @@ export default function Bookmarks() {
         }
 
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks`,
+          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/bookmarks`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`
@@ -31,8 +31,8 @@ export default function Bookmarks() {
             withCredentials: true
           }
         )
-        if (response.data?.data) {
-          setPlaces(response.data.data)
+        if (response.data) {
+          setPlaces(response.data)
         }
       } catch (error) {
         console.error('Failed to fetch bookmarks:', error)

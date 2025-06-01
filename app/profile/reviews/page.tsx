@@ -17,7 +17,7 @@ export default function MyReviews() {
     const fetchMyReviews = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_HOST}/reviews/my`,
+          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/reviews`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("accessToken")}`
@@ -25,7 +25,7 @@ export default function MyReviews() {
             withCredentials: true
           }
         )
-        setReviews(response.data.data)
+        setReviews(response.data)
       } catch (error) {
         console.error('Failed to fetch reviews:', error)
       } finally {
