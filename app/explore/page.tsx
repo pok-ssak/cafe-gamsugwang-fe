@@ -207,7 +207,7 @@ function ExploreContent() {
                 </button>
               ))}
             </div>
-
+            
             {selectedKeywords.length > 0 && (
               <div>
                 {isKeywordLoading ? (
@@ -271,6 +271,7 @@ function ExploreContent() {
                     className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
                     onClick={() => setSelectedPlace(place)}
                   >
+
                     <img 
                       src={place.imageUrl || FALLBACK_IMAGE_URL} 
                       alt={place.title}

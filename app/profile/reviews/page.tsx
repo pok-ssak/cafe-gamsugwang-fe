@@ -20,39 +20,10 @@ export default function Reviews() {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        setPlacesLoading(true)
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/reviews/my`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-          },
-          withCredentials: true
-        })
-        setPlaces(response.data.data)
-      } catch (error) {
-        console.error('Failed to fetch reviews:', error)
-      } finally {
-        setPlacesLoading(false)
-      }
-    }
 
-    if (isAuthenticated) {
-      fetchReviews()
-    }
-  }, [isAuthenticated, setPlaces, setPlacesLoading])
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/reviews`,
 
-  const handleCardBookmarkToggle = async (placeId: number, e: React.MouseEvent) => {
-    e.stopPropagation()
-
-    try {
-      const accessToken = localStorage.getItem('accessToken')
-      if (!accessToken) return
-
-      const place = places.find(p => p.id === placeId)
-      if (!place) return
-
-      if (place.isBookmarked) {
-        await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`
@@ -71,6 +42,12 @@ export default function Reviews() {
             withCredentials: true
           }
         )
+
+        setReviews(response.data)
+      } catch (error) {
+        console.error('Failed to fetch reviews:', error)
+      } finally {
+        setIsLoading(false)
       }
 
       setPlaces(prevPlaces => 

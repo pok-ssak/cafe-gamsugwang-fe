@@ -20,14 +20,25 @@ export default function Bookmarks() {
   useEffect(() => {
     const fetchBookmarks = async () => {
       try {
-        setPlacesLoading(true)
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/bookmarks`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-          },
-          withCredentials: true
-        })
-        setPlaces(response.data.data)
+
+        const accessToken = localStorage.getItem("accessToken")
+        if (!accessToken) {
+          router.push("/login")
+          return
+        }
+
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/bookmarks`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`
+            },
+            withCredentials: true
+          }
+        )
+        if (response.data) {
+          setPlaces(response.data)
+        }
       } catch (error) {
         console.error('Failed to fetch bookmarks:', error)
       } finally {
