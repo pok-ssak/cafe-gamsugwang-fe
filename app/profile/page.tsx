@@ -15,7 +15,8 @@ export default function Profile() {
     email: "",
     imageUrl: "",
     bookmarkCount: 0,
-    reviewCount: 0
+    reviewCount: 0,
+    keywords: [] as Array<{ word: string; count: number }>
   })
   // const [isLoading, setIsLoading] = useState(true)
   
@@ -94,6 +95,22 @@ export default function Profile() {
               프로필 수정
             </Button>
           </div>
+          {/* 키워드 태그 */}
+          {profile.keywords && profile.keywords.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">관심 키워드</h3>
+              <div className="flex flex-wrap gap-2">
+                {profile.keywords.map((keyword, index) => (
+                  <span
+                    key={`${keyword.word}-${index}`}
+                    className="px-3 py-1.5 bg-orange-100 text-orange-600 rounded-full text-sm"
+                  >
+                    {keyword.word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-6 mt-6">
             <div className="text-center">
               <div className="font-bold text-lg">{profile.reviewCount}</div>
@@ -104,6 +121,8 @@ export default function Profile() {
               <div className="text-sm text-gray-600">북마크</div>
             </div>
           </div>
+          
+          
         </div>
       </div>
 
