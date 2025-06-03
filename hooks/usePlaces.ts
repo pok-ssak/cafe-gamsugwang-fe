@@ -3,45 +3,87 @@ import { Place } from '@/types/place'
 import { useCafeApi } from './useCafeApi'
 import { useLocation } from '@/contexts/LocationContext'
 
-export function usePlaces() {
+interface UsePlacesProps {
+  isTestMode?: boolean
+}
+
+export function usePlaces({ isTestMode = false }: UsePlacesProps = {}) {
   const [places, setPlaces] = useState<Place[]>([])
   const [nearbyPlaces, setNearbyPlaces] = useState<Place[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const { userLocation, isLoading: isLocationLoading, error: locationError, refreshLocation } = useLocation()
-  const { fetchSelfRecommendCafes, fetchNearbyCafes } = useCafeApi()
+  const { userLocation, isLoading: isLocationLoading, error: locationError } = useLocation()
+  const { fetchSelfRecommendCafes, fetchNearbyCafes, fetchInitialNearbyCafes } = useCafeApi()
 
+  // 제주도 랜덤 위치 생성 함수
+  const generateRandomJejuLocation = () => {
+    // 제주도 대략적인 경계
+    const minLat = 33.1  // 제주도 남쪽 끝
+    const maxLat = 33.6  // 제주도 북쪽 끝
+    const minLon = 126.1 // 제주도 서쪽 끝
+    const maxLon = 126.9 // 제주도 동쪽 끝
+
+    const lat = minLat + Math.random() * (maxLat - minLat)
+    const lon = minLon + Math.random() * (maxLon - minLon)
+
+    return { lat, lon }
+  }
+
+  // 현재 위치 가져오기
+  const getUserLocation = () => {
+    if (isTestMode) {
+      const randomLocation = generateRandomJejuLocation()
+      setUserLocation(randomLocation)
+      return
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+          })
+        },
+        (error) => {
+          console.error('Error getting location:', error)
+        }
+      )
+    }
+  }
+
+  // 맞춤추천 카페 가져오기
   const fetchPlaces = async () => {
     if (!userLocation) return
 
-    setIsLoading(true)
     try {
-      console.log('Fetching recommended places...')
+      setIsLoading(true)
       const data = await fetchSelfRecommendCafes(userLocation.lat, userLocation.lon)
-      console.log('Recommended places fetched:', data)
       setPlaces(data)
     } catch (error) {
-      console.error('Failed to fetch recommended places:', error)
+      console.error('Failed to fetch places:', error)
     } finally {
       setIsLoading(false)
     }
   }
 
+  // 근처 카페 가져오기
   const fetchNearbyPlaces = async () => {
     if (!userLocation) return
 
-    setIsLoading(true)
     try {
-      console.log('Fetching nearby places...')
       const data = await fetchNearbyCafes(userLocation.lat, userLocation.lon)
-      console.log('Nearby places fetched:', data)
       setNearbyPlaces(data)
     } catch (error) {
       console.error('Failed to fetch nearby places:', error)
-    } finally {
-      setIsLoading(false)
     }
   }
 
+  // 초기 위치 설정 및 데이터 로드
+  useEffect(() => {
+    getUserLocation()
+  }, [])
+
+  // 위치가 변경될 때마다 데이터 새로고침
   useEffect(() => {
     if (userLocation) {
       fetchPlaces()
@@ -49,13 +91,17 @@ export function usePlaces() {
     }
   }, [userLocation])
 
+  // 테스트 모드 변경 시 위치 새로고침
+  useEffect(() => {
+    getUserLocation()
+  }, [isTestMode])
+
   return {
     places,
     nearbyPlaces,
     isLoading: isLoading || isLocationLoading,
     error: locationError,
     refreshPlaces: fetchPlaces,
-    refreshNearbyPlaces: fetchNearbyPlaces,
-    refreshLocation
+    refreshNearbyPlaces: fetchNearbyPlaces
   }
 } 
