@@ -261,7 +261,7 @@ export default function Explore() {
         <div className="space-y-4">
           {nearbyPlaces.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              근처에 10km이내 카페가 없어요!
+              카페가 없어요!
             </div>
           ) : (
             nearbyPlaces.map((place) => (
