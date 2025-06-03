@@ -5,6 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import BottomNavigation from "@/components/bottom-navigation"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { PlacesProvider } from "@/contexts/PlacesContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,10 +23,12 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <AuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            <main className="flex-1 relative overflow-y-auto">{children}</main>
-            <BottomNavigation />
-          </ThemeProvider>
+          <PlacesProvider>
+            <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+              <main className="flex-1 relative overflow-y-auto">{children}</main>
+              <BottomNavigation />
+            </ThemeProvider>
+          </PlacesProvider>
         </AuthProvider>
       </body>
     </html>

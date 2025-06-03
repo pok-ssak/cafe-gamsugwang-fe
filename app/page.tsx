@@ -10,6 +10,7 @@ import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { Button } from "@/components/ui/button"
 import axios from "axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
+import { usePlaces } from "@/contexts/PlacesContext"
 
 declare global {
   interface Window {
@@ -35,29 +36,30 @@ export default function Home() {
   const [currentAddress, setCurrentAddress] = useState("제주특별자치도 제주시 중앙로 1")
   const clickedMarkerRef = useRef<any>(null)
   const [currentLocationMarker, setCurrentLocationMarker] = useState<any>(null)
-  const [places, setPlaces] = useState<Place[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { places, setPlaces, isLoading, setIsLoading, keywordList, setKeywordList } = usePlaces()
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [autoCompleteResults, setAutoCompleteResults] = useState<{id: number, title: string}[]>([])
   const [isLoadingAutoComplete, setIsLoadingAutoComplete] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [keywordList, setKeywordList] = useState<string[]>([])
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
   const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
+  const [isTestMode, setIsTestMode] = useState(false)
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/recommend`, {
+      // 현재 위치 가져오기
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject)
+      })
+
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/self-recommend`, {
         params: {
-          option: "location",
-          lat: 33.49778542665778,
-          lon: 126.53172072809313,
-          keyword: "",
-          limit: 5
+          lat: position.coords.latitude,
+          lon: position.coords.longitude
         },
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`
@@ -74,6 +76,25 @@ export default function Home() {
       setKeywordList(Array.from(new Set(keywords)))
     } catch (error) {
       console.error('Failed to fetch popular places:', error)
+      // 위치 정보를 가져오는데 실패한 경우 기본 좌표(제주시청) 사용
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/self-recommend`, {
+        params: {
+          lat: 33.4996213,
+          lon: 126.5311884
+        },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+        },
+        withCredentials: true
+      })
+      console.log(response.data.data)
+      setPlaces(response.data.data)
+      
+      // 키워드 리스트 업데이트
+      const keywords = response.data.data.flatMap((place: Place) => 
+        (place.keywordList || []).map(k => k.keyword)
+      )
+      setKeywordList(Array.from(new Set(keywords)))
     } finally {
       setIsLoading(false)
     }
@@ -324,7 +345,10 @@ export default function Home() {
 
     const onLoadKakaoAPI = () => {
       window.kakao.maps.load(() => {
-        fetchPopularPlaces() // 초기 로드시 인기 카페 목록 가져오기
+        // place 배열이 비어있을 때만 fetchPopularPlaces 실행
+        if (places.length === 0) {
+          fetchPopularPlaces()
+        }
       })
     }
 
@@ -529,10 +553,10 @@ export default function Home() {
       }
 
       // places 배열 업데이트
-      setPlaces(prevPlaces => 
-        prevPlaces.map(p => 
-          p.id === placeId 
-            ? { ...p, isBookmarked: !p.isBookmarked } 
+      setPlaces(prev =>
+        prev.map((p) =>
+          p.id === placeId
+            ? { ...p, isBookmarked: !p.isBookmarked }
             : p
         )
       )
@@ -626,14 +650,14 @@ export default function Home() {
           {/* 키워드 버튼 컨테이너 */}
           <div 
             ref={scrollRef}
-            className="flex overflow-x-auto scrollbar-hide px-4 py-2"
+            className="flex overflow-x-auto scrollbar-hide px-4 py-2 justify-center"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {keywordList.length > 0 ? (
               keywordList.map((keyword, index) => (
                 <button 
                   key={index}
-                  className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm"
+                  className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm whitespace-nowrap"
                   onClick={() => {
                     setSearchQuery(keyword)
                     fetchPlaces("keyword", keyword)
@@ -983,11 +1007,10 @@ export default function Home() {
             setShowModal(false)
           }}
           onBookmarkChange={(placeId, isBookmarked) => {
-            console.log('Home - onBookmarkChange received:', { placeId, isBookmarked })
-            setPlaces(prevPlaces => 
-              prevPlaces.map(place => 
-                place.id === placeId 
-                  ? { ...place, isBookmarked } 
+            setPlaces(prev =>
+              prev.map((place) =>
+                place.id === placeId
+                  ? { ...place, isBookmarked }
                   : place
               )
             )
@@ -1004,6 +1027,16 @@ export default function Home() {
           <ChevronUp className="w-5 h-5" />
         </button>
       )}
+
+      {/* 테스트 모드 버튼 */}
+      <button
+        onClick={() => setIsTestMode(!isTestMode)}
+        className={`absolute bottom-16 right-4 p-3 rounded-full shadow-lg transition-colors z-10 ${
+          isTestMode ? 'bg-orange-500 text-white' : 'bg-white hover:bg-gray-50'
+        }`}
+      >
+        <span className="text-sm font-medium">테스트 모드</span>
+      </button>
     </div>
   )
 }

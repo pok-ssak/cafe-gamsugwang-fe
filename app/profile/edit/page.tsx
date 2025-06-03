@@ -9,6 +9,12 @@ import Image from "next/image"
 import axios from "axios"
 import { blob } from "stream/consumers"
 
+const INTEREST_KEYWORDS = [
+  "아메리카노", "라떼", "에스프레소", "콜드브루", "디저트",
+  "브런치", "테라스", "북카페", "로스팅", "원두",
+  "스페셜티", "디카페인", "시그니처", "베이글", "케이크"
+]
+
 export default function ProfileEdit() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -17,6 +23,7 @@ export default function ProfileEdit() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [isImageChanged, setIsImageChanged] = useState(false)
+  const [keywords, setKeywords] = useState<Array<{ word: string; count: number }>>([])
 
   // 프로필 정보 가져오기
   useEffect(() => {
@@ -30,6 +37,11 @@ export default function ProfileEdit() {
         })
         setNickname(response.data.nickName)
         setProfileImage(response.data.imageUrl)
+        if (response.data.keywords && Array.isArray(response.data.keywords)) {
+          // Sort keywords by count in descending order
+          const sortedKeywords = [...response.data.keywords].sort((a, b) => b.count - a.count)
+          setKeywords(sortedKeywords)
+        }
       } catch (error) {
         console.error('프로필 로딩 실패:', error)
       }
@@ -95,12 +107,18 @@ export default function ProfileEdit() {
       setIsLoading(true)
       setError("")
 
+      // 현재 선택된 키워드만 전송
+      const currentKeywords = keywords.map(k => k.word)
+
       await axios.put(
         `${process.env.NEXT_PUBLIC_API_HOST}/users/profile`,
-        { nickName: nickname },
+        { 
+          nickname: nickname,
+          keywords: currentKeywords
+        },
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
           withCredentials: true
@@ -109,11 +127,22 @@ export default function ProfileEdit() {
 
       router.push("/profile")
     } catch (error: any) {
-      console.error('Nickname update failed:', error)
+      console.error('Profile update failed:', error)
       setError(error.response?.data?.message || '수정에 실패했습니다.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const toggleKeyword = (word: string) => {
+    setKeywords(prev => {
+      const existingKeyword = prev.find(k => k.word === word)
+      if (existingKeyword) {
+        return prev.filter(k => k.word !== word)
+      } else {
+        return [...prev, { word, count: 0 }]
+      }
+    })
   }
 
   return (
@@ -181,7 +210,7 @@ export default function ProfileEdit() {
           </div>
 
           {/* 닉네임 입력 */}
-          <div className="space-y-2">
+          <div className="space-y-2 mb-6">
             <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
               닉네임
             </label>
@@ -193,14 +222,44 @@ export default function ProfileEdit() {
                 placeholder="닉네임을 입력하세요"
                 className="flex-1"
               />
-              <Button
-                onClick={handleNicknameSubmit}
-                disabled={isLoading || !nickname}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                {isLoading ? "저장 중..." : "저장"}
-              </Button>
             </div>
+          </div>
+
+          {/* 관심 키워드 */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              관심 키워드
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {INTEREST_KEYWORDS.map((keyword) => {
+                const isSelected = keywords.some(k => k.word === keyword)
+                return (
+                  <button
+                    key={keyword}
+                    type="button"
+                    onClick={() => toggleKeyword(keyword)}
+                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      isSelected
+                        ? 'bg-orange-500 text-white hover:bg-orange-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {keyword}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 저장 버튼 */}
+          <div className="mt-6">
+            <Button
+              onClick={handleNicknameSubmit}
+              disabled={isLoading || !nickname}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {isLoading ? "저장 중..." : "저장"}
+            </Button>
           </div>
 
           {/* 에러 메시지 */}
