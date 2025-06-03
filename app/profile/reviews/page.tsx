@@ -1,133 +1,117 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/contexts/AuthContext"
-import { usePlaces } from "@/contexts/PlacesContext"
+import { useEffect, useState } from "react"
+import { Review } from "@/types/review"
 import axios from "axios"
-import { Place } from "@/types/place"
-import { PlaceDetailModal } from "@/components/place-detail-modal"
-import { useState } from "react"
-import { Heart } from "lucide-react"
+import { Star, ThumbsUp, User, ArrowLeft } from "lucide-react"
+import Image from "next/image"
+import { FALLBACK_IMAGE_URL } from "@/app/constants"
+import { useRouter } from "next/navigation"
 
-export default function Reviews() {
+export default function MyReviews() {
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
-  const { places, setPlaces, isLoading: isPlacesLoading, setIsLoading: setPlacesLoading } = usePlaces()
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
-  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    const fetchReviews = async () => {
+    const fetchMyReviews = async () => {
       try {
-
         const response = await axios.get(
           `${process.env.NEXT_PUBLIC_API_HOST}/users/my/reviews`,
-
           {
             headers: {
-              'Authorization': `Bearer ${accessToken}`
+              Authorization: `Bearer ${localStorage.getItem("accessToken")}`
             },
             withCredentials: true
           }
         )
-      } else {
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
-          {},
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            },
-            withCredentials: true
-          }
-        )
-
         setReviews(response.data)
       } catch (error) {
         console.error('Failed to fetch reviews:', error)
       } finally {
         setIsLoading(false)
       }
-
-      setPlaces(prevPlaces => 
-        prevPlaces.map(p => 
-          p.id === placeId 
-            ? { ...p, isBookmarked: !p.isBookmarked } 
-            : p
-        )
-      )
-
-      if (selectedPlace?.id === placeId) {
-        setSelectedPlace(prev => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null)
-      }
-    } catch (error) {
-      console.error('Failed to toggle bookmark:', error)
     }
-  }
+
+    fetchMyReviews()
+  }, [])
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-gray-500">리뷰를 불러오는 중...</div>
       </div>
     )
-  }
-
-  if (!isAuthenticated) {
-    router.push('/login')
-    return null
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 헤더 */}
       <div className="bg-white border-b">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold">내 리뷰</h1>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center">
+          <button 
+            onClick={() => router.back()}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold ml-4">내 리뷰</h1>
         </div>
       </div>
 
-      {/* 리뷰 목록 */}
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        {isPlacesLoading ? (
-          <div className="text-center py-8 text-gray-500">
-            리뷰 목록을 불러오는 중...
-          </div>
-        ) : places.length > 0 ? (
+      <div className="container mx-auto px-4 py-8">
+        {reviews.length > 0 ? (
           <div className="space-y-4">
-            {places.map((place) => (
-              <div
-                key={place.id}
-                onClick={() => {
-                  setSelectedPlace(place)
-                  setShowModal(true)
-                }}
-                className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-              >
-                <div className="flex gap-4">
-                  <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                    <img 
-                      src={place.imageUrl} 
-                      alt={place.title}
-                      className="w-full h-full object-cover"
-                    />
+            {reviews.map((review) => (
+              <div key={review.id} className="bg-white rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                      {review.imageUrl ? (
+                        <Image
+                          src={review.imageUrl}
+                          alt={review.nickname}
+                          width={32}
+                          height={32}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-500" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-sm font-medium">{review.nickname}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="text-lg font-bold truncate">{place.title}</h2>
-                      <button 
-                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                        onClick={(e) => handleCardBookmarkToggle(place.id, e)}
-                      >
-                        <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <span className="truncate">{place.address}</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-1 text-gray-500">
+                      <ThumbsUp className="w-4 h-4" />
+                      <span className="text-xs">{review.likeCount}</span>
+                    </button>
+                    <span className="text-xs text-gray-500">{review.createdAt}</span>
                   </div>
                 </div>
+                {review.imageUrl && (
+                  <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
+                    <Image
+                      src={review.imageUrl}
+                      alt="리뷰 이미지"
+                      fill
+                      className="object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = FALLBACK_IMAGE_URL;
+                      }}
+                    />
+                  </div>
+                )}
+                <p className="text-sm text-gray-600">
+                  <span className="inline-flex items-center gap-1 mr-2">
+                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                    <span className="font-medium text-gray-700">{review.rating}</span>
+                  </span>
+                  {review.content}
+                </p>
               </div>
             ))}
           </div>
@@ -137,24 +121,6 @@ export default function Reviews() {
           </div>
         )}
       </div>
-
-      {showModal && selectedPlace && (
-        <PlaceDetailModal 
-          place={selectedPlace} 
-          onClose={() => {
-            setShowModal(false)
-          }}
-          onBookmarkChange={(placeId, isBookmarked) => {
-            setPlaces(prevPlaces => 
-              prevPlaces.map(place => 
-                place.id === placeId 
-                  ? { ...place, isBookmarked } 
-                  : place
-              )
-            )
-          }}
-        />
-      )}
     </div>
   )
 } 
