@@ -1,8 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import axios from 'axios'
 import { useRouter, usePathname } from 'next/navigation'
+import axiosInstance from '@/lib/axios'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -54,25 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoading, isAuthenticated, pathname, router])
 
-  // axios 인터셉터 설정
-  useEffect(() => {
-    const interceptor = axios.interceptors.request.use(
-      (config) => {
-        if (accessToken) {
-          config.headers.Authorization = `Bearer ${accessToken}`
-        }
-        return config
-      },
-      (error) => {
-        return Promise.reject(error)
-      }
-    )
-
-    return () => {
-      axios.interceptors.request.eject(interceptor)
-    }
-  }, [accessToken])
-
   const login = (token: string) => {
     localStorage.setItem('accessToken', token)
     setAccessToken(token)
@@ -81,14 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // await axios.post(
-      //   `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/auth/logout`,
-      //   {},
-      //   {
-      //     withCredentials: true
-      //   }
-      // )
-      
+      // await axiosInstance.post('/auth/logout')
       localStorage.removeItem('accessToken')
       setAccessToken(null)
       setIsAuthenticated(false)

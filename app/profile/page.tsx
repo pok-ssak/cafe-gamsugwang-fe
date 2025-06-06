@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
-import axios from "axios"
+import axiosInstance from '@/lib/axios'
 
 export default function Profile() {
   const router = useRouter()
@@ -22,12 +22,7 @@ export default function Profile() {
   
   const  fetchProfile = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/users/profile`, {
-        withCredentials: true,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`
-        }
-      })
+      const response = await axiosInstance.get('/users/profile')
       console.log(response.data)
       setProfile(response.data)
     } catch (error) {

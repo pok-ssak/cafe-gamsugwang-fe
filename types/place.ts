@@ -1,9 +1,8 @@
 export interface MenuItem {
   id: number
   name: string
+  menuImageUrl: string
   price: number
-  description: string
-  imageUrl: string
 }
 
 export interface Place {
@@ -21,4 +20,5 @@ export interface Place {
   isBookmarked?: boolean
   keywordList?: { keyword: string }[]
   menu?: MenuItem[]
+  profileImageUrl?: string | null
 } 

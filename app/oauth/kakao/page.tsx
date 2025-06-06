@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext'
-import axios from 'axios';
+import axiosInstance from '@/lib/axios';
 
 export default function KakaoRedirect() {
   const router = useRouter();
@@ -18,11 +18,12 @@ export default function KakaoRedirect() {
       (async () => {
         try {
           console.log(code)
-          const response = await axios.post(`${process.env.NEXT_PUBLIC_API_HOST}/auth/oauth/kakao`, { code });
+          const response = await axiosInstance.post('/auth/oauth/kakao', { code });
           console.log(response)
-          const accessToken = response.data.data.jwtTokenDto.accessToken;
+          const { accessToken, refreshToken } = response.data.data.jwtTokenDto;
 
           localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
 
           if (response.data.data.isRegister === true) {
             router.push('/');
