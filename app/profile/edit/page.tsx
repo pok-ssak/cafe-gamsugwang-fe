@@ -9,6 +9,12 @@ import Image from "next/image"
 import axios from "axios"
 import { blob } from "stream/consumers"
 
+const INTEREST_KEYWORDS = [
+  "아메리카노", "라떼", "에스프레소", "콜드브루", "디저트",
+  "브런치", "테라스", "북카페", "로스팅", "원두",
+  "스페셜티", "디카페인", "시그니처", "베이글", "케이크"
+]
+
 export default function ProfileEdit() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
