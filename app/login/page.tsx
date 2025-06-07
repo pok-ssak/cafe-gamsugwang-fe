@@ -9,7 +9,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from '@/contexts/AuthContext'
-import axios from "axios"
+import axiosInstance from '@/lib/axios'
 
 export default function Login() {
   const searchParams = useSearchParams()
@@ -64,18 +64,13 @@ export default function Login() {
     console.log(email)
     console.log(password)
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/auth/login`,
-        {
-          email,
-          password
-        },
-        {
-          withCredentials: true
-        }
-      )
-      // 서버에서 받은 accessToken으로 로그인 처리
+      const response = await axiosInstance.post('/auth/login', {
+        email,
+        password
+      })
+      // 서버에서 받은 accessToken과 refreshToken으로 로그인 처리
       const { accessToken, refreshToken } = response.data.data
+      localStorage.setItem('refreshToken', refreshToken)
       login(accessToken)
       router.push(from)
     } catch (error) {

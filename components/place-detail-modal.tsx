@@ -7,9 +7,10 @@ import { Review } from "@/types/review"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import axios from "axios"
+import axiosInstance from "@/lib/axios"
 import { ReviewWriteModal } from "./review-write-modal"
 import { FALLBACK_IMAGE_URL } from "@/app/constants"
+import Script from "next/script"
 
 interface PlaceDetailModalProps {
   place: Place | null
@@ -17,15 +18,17 @@ interface PlaceDetailModalProps {
   onBookmarkChange?: (placeId: number, isBookmarked: boolean) => void
 }
 
-export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDetailModalProps) {
+export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChange }: PlaceDetailModalProps) {
   const router = useRouter()
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(place?.isBookmarked || false)
+  const [isBookmarked, setIsBookmarked] = useState(initialPlace?.isBookmarked || false)
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false)
+  const [place, setPlace] = useState<Place | null>(initialPlace)
+  const [isLoading, setIsLoading] = useState(false)
   const [newReview, setNewReview] = useState({
     content: "",
     imageUrl: "",
@@ -36,6 +39,26 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
   const [isUploading, setIsUploading] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const roadviewRef = useRef<HTMLDivElement>(null)
+  const [roadview, setRoadview] = useState<any>(null)
+  const [roadviewClient, setRoadviewClient] = useState<any>(null)
+
+  // 카페 상세 정보 가져오기
+  const fetchCafeDetails = async () => {
+    if (!initialPlace) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.get(`/cafes/${initialPlace.id}`);
+      const cafeData = response.data.data;
+      setPlace(cafeData);
+      setIsBookmarked(cafeData.isBookmarked || false);
+    } catch (error) {
+      console.error('Failed to fetch cafe details:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 리뷰 목록 가져오기
   const fetchReviews = async () => {
@@ -43,10 +66,7 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
     
     setIsLoadingReviews(true)
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/${place.id}/reviews`, {
-        withCredentials: true
-      })
-      
+      const response = await axiosInstance.get(`/cafes/${place.id}/reviews`)
       setReviews(response.data.data.content)
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
@@ -55,37 +75,39 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
     }
   }
 
-  // 모달이 열릴 때 리뷰 목록 가져오기
+  // 모달이 열릴 때 카페 상세 정보와 리뷰 목록 가져오기
   useEffect(() => {
-    if (place) {
-      fetchReviews()
+    if (initialPlace) {
+      fetchCafeDetails();
+      fetchReviews();
     }
-  }, [place])
+  }, [initialPlace]);
 
   // place가 변경될 때 북마크 상태 업데이트
   useEffect(() => {
     if (place) {
       setIsBookmarked(place.isBookmarked || false)
     }
-    console.log(place)
   }, [place])
 
-  // 더미 메뉴 데이터 생성
-  const generateDummyMenu = () => {
-    return Array.from({ length: 10 }, (_, i) => ({
-      id: i,
-      name: `메뉴 ${i + 1}`,
-      price: 5000 + Math.floor(Math.random() * 10000),
-      description: "맛있는 메뉴입니다. 신선한 재료로 만든 시그니처 메뉴입니다.",
-      imageUrl: `/menu-${i + 1}.jpg`
-    }))
+  // 메뉴 데이터 로드
+  const fetchMenuItems = async () => {
+    if (!place) return;
+    
+    try {
+      const response = await axiosInstance.get(`/cafes/${place.id}/menus`);
+      setMenuItems(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch menu items:', error);
+    }
   }
 
-  // 메뉴 데이터 로드
+  // place가 변경될 때 메뉴 데이터 로드
   useEffect(() => {
-    const menuData = generateDummyMenu()
-    setMenuItems(menuData)
-  }, [])
+    if (place) {
+      fetchMenuItems();
+    }
+  }, [place]);
 
   // 스크롤 감지
   useEffect(() => {
@@ -137,15 +159,13 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
       const formData = new FormData()
       formData.append("image", file)
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/upload`,
+      const response = await axiosInstance.post(
+        `/upload`,
         formData,
         {
           headers: {
             'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          withCredentials: true
+          }
         }
       )
 
@@ -203,17 +223,7 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
         imageUrl: newReview.imageUrl,
         rating: newReview.rating
       }
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/reviews`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          withCredentials: true
-        }
-      )
+      await axiosInstance.post(`/reviews`, payload)
       
       setShowReviewModal(false)
       fetchReviews()
@@ -250,16 +260,7 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
         )
       )
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/reviews/${reviewId}/like-toggle`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          },
-          withCredentials: true
-        }
-      )
+      const response = await axiosInstance.post(`/reviews/${reviewId}/like-toggle`)
 
       // API 응답으로 받은 데이터로 상태 업데이트
       setReviews(prevReviews => 
@@ -307,27 +308,10 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
 
       if (isBookmarked) {
         // 북마크 삭제
-        await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            },
-            withCredentials: true
-          }
-        )
+        await axiosInstance.delete(`/bookmarks/${place.id}`)
       } else {
         // 북마크 추가
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${place.id}`,
-          {},
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            },
-            withCredentials: true
-          }
-        )
+        await axiosInstance.post(`/bookmarks/${place.id}`)
       }
 
       const newBookmarkState = !isBookmarked
@@ -341,6 +325,25 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
     }
   }
 
+  // 카카오맵 로드뷰 초기화
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.kakao && window.kakao.maps && place) {
+      const roadviewContainer = roadviewRef.current
+      if (!roadviewContainer) return
+
+      const newRoadview = new window.kakao.maps.Roadview(roadviewContainer)
+      const newRoadviewClient = new window.kakao.maps.RoadviewClient()
+      
+      setRoadview(newRoadview)
+      setRoadviewClient(newRoadviewClient)
+
+      const position = new window.kakao.maps.LatLng(place.lat, place.lon)
+      newRoadviewClient.getNearestPanoId(position, 50, (panoId: string) => {
+        newRoadview.setPanoId(panoId, position)
+      })
+    }
+  }, [place])
+
   if (!place) return null
 
   return (
@@ -353,7 +356,18 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
         }
       }}
     >
+      <Script
+        src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services`}
+        strategy="beforeInteractive"
+      />
       <div className="bg-white rounded-2xl w-full max-w-lg h-[720px] flex flex-col relative">
+        {/* 로딩 상태 표시 */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="text-gray-500">로딩 중...</div>
+          </div>
+        )}
+
         {/* 고정된 버튼 */}
         <button
           onClick={showScrollTop ? scrollToTop : onClose}
@@ -413,11 +427,11 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-2 text-gray-600 text-sm">
                 <Clock className="w-4 h-4" />
-                <span>영업시간: {place.openTime}</span>
+                <span> {place.openTime || "정보가 없습니다"}</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600 text-sm">
                 <Phone className="w-4 h-4" />
-                <span>{place.phoneNumber}</span>
+                <span>{place.phoneNumber || "정보가 없습니다"}</span>
               </div>
             </div>
             {place.keywordList && place.keywordList.length > 0 && (
@@ -457,6 +471,17 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
               </Button>
             </div>
 
+            {/* 로드뷰 섹션 */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">로드뷰</h3>
+              </div>
+              <div 
+                ref={roadviewRef}
+                className="w-full h-[300px] rounded-xl overflow-hidden"
+              />
+            </div>
+
             {/* 리뷰 섹션 */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
@@ -481,13 +506,17 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                              {review.imageUrl ? (
+                              {review.profileImageUrl ? (
                                 <Image
-                                  src={review.imageUrl}
+                                  src={review.profileImageUrl}
                                   alt={review.nickname}
                                   width={32}
                                   height={32}
                                   className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = FALLBACK_IMAGE_URL;
+                                  }}
                                 />
                               ) : (
                                 <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -544,15 +573,27 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
 
             {/* 메뉴 섹션 */}
             <div className="border-t pt-4">
-              <h3 className="text-lg font-bold mb-4">메뉴</h3>
-              {place.menu && place.menu.length > 0 ? (
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">메뉴</h3>
+                <Button 
+                  variant="outline" 
+                  className="text-sm h-8 w-8 p-0"
+                  onClick={() => {
+                    // TODO: 메뉴 수정 기능 구현
+                    alert('메뉴 수정 기능은 준비 중입니다.')
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              </div>
+              {menuItems && menuItems.length > 0 ? (
                 <div className="space-y-4">
-                  {place.menu.map((item, index) => (
+                  {menuItems.map((item, index) => (
                     <div key={index} className="flex items-center gap-4">
                       <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
-                        {item.imageUrl ? (
+                        {item.menuImageUrl ? (
                           <Image
-                            src={item.imageUrl || FALLBACK_IMAGE_URL}
+                            src={item.menuImageUrl || FALLBACK_IMAGE_URL}
                             alt={item.name}
                             fill
                             className="object-cover"
@@ -569,7 +610,6 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
                       </div>
                       <div className="flex-1">
                         <h4 className="font-medium">{item.name}</h4>
-                        <p className="text-sm text-gray-500">{item.description}</p>
                         <span className="font-medium">{item.price.toLocaleString()}원</span>
                       </div>
                     </div>
@@ -581,6 +621,8 @@ export function PlaceDetailModal({ place, onClose, onBookmarkChange }: PlaceDeta
                 </div>
               )}
             </div>
+
+            
           </div>
         </div>
       </div>

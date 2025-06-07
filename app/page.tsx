@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation"
 import { Place } from "@/types/place"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { Button } from "@/components/ui/button"
-import axios from "axios"
+import axiosInstance from "@/lib/axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
 import { usePlaces } from "@/contexts/PlacesContext"
 
@@ -56,15 +56,11 @@ export default function Home() {
         navigator.geolocation.getCurrentPosition(resolve, reject)
       })
 
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/self-recommend`, {
+      const response = await axiosInstance.get(`/cafes/self-recommend`, {
         params: {
           lat: position.coords.latitude,
           lon: position.coords.longitude
-        },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-        },
-        withCredentials: true
+        }
       })
       console.log(response.data.data)
       setPlaces(response.data.data)
@@ -77,15 +73,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch popular places:', error)
       // 위치 정보를 가져오는데 실패한 경우 기본 좌표(제주시청) 사용
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/self-recommend`, {
+      const response = await axiosInstance.get(`/cafes/self-recommend`, {
         params: {
           lat: 33.4996213,
           lon: 126.5311884
-        },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-        },
-        withCredentials: true
+        }
       })
       console.log(response.data.data)
       setPlaces(response.data.data)
@@ -103,14 +95,10 @@ export default function Home() {
   // 카페 목록 가져오기
   const fetchPlaces = async (option?: string, keyword?: string) => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/search`, {
+      const response = await axiosInstance.get(`/cafes/search`, {
         params: {
           query: keyword
-        },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-        },
-        withCredentials: true
+        }
       })
       console.log(response.data);
       setPlaces(response.data.data)
@@ -145,12 +133,8 @@ export default function Home() {
 
     try {
       setIsLoadingAutoComplete(true)
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/cafes/auto-complete`, {
-        params: { keyword },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-        },
-        withCredentials: true
+      const response = await axiosInstance.get(`/cafes/auto-complete`, {
+        params: { keyword }
       })
       console.log(response.data);  
       setAutoCompleteResults(response.data)
@@ -289,7 +273,9 @@ export default function Home() {
         if (status === window.kakao.maps.services.Status.OK) {
           const roadAddress = result[0].road_address?.address_name
           const address = result[0].address.address_name
-          setCurrentAddress(roadAddress || address)
+          // 도로명주소에서 시/도 부분 제거
+          const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+          setCurrentAddress(cleanAddress)
         }
       })
     })
@@ -460,7 +446,9 @@ export default function Home() {
             if (status === window.kakao.maps.services.Status.OK) {
               const roadAddress = result[0].road_address?.address_name
               const address = result[0].address.address_name
-              setCurrentAddress(roadAddress || address)
+              // 도로명주소에서 시/도 부분 제거
+              const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+              setCurrentAddress(cleanAddress)
             }
           })
         },
@@ -529,27 +517,10 @@ export default function Home() {
 
       if (place.isBookmarked) {
         // 북마크 삭제
-        await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            },
-            withCredentials: true
-          }
-        )
+        await axiosInstance.delete(`/bookmarks/${placeId}`)
       } else {
         // 북마크 추가
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
-          {},
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            },
-            withCredentials: true
-          }
-        )
+        await axiosInstance.post(`/bookmarks/${placeId}`)
       }
 
       // places 배열 업데이트
@@ -686,18 +657,29 @@ export default function Home() {
       {/* 현재 위치 버튼 */}
       {!isList && (
         <div className="absolute top-32 left-4 right-4 z-30 flex items-center justify-between">
-          <div className="bg-gray-100/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm">
-            <span className="text-sm text-gray-700 font-medium truncate max-w-[200px]">
+          <div 
+            className="bg-gray-100/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:bg-gray-200/90 transition-colors"
+            onClick={() => {
+              navigator.clipboard.writeText(currentAddress)
+                .then(() => {
+                  alert('주소가 클립보드에 복사되었습니다.')
+                })
+                .catch(() => {
+                  alert('주소 복사에 실패했습니다.')
+                })
+            }}
+          >
+            <span className="text-sm text-gray-700 font-medium truncate max-w-[270px] block">
               {currentAddress}
             </span>
           </div>
-        <button 
-          onClick={moveToCurrentLocation}
+          <button 
+            onClick={moveToCurrentLocation}
             className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
-        >
+          >
             <MapPin className="w-4 h-4" />
             <span className="text-sm">현재 위치</span>
-        </button>
+          </button>
         </div>
       )}
 

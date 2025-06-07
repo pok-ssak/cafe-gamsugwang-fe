@@ -6,7 +6,8 @@ export interface Review {
   reviewCount: number
   content: string
   createdAt: string
-  imageUrl?: string
+  imageUrl: string | null
   likedByUser: boolean
   likeCount: number
+  profileImageUrl: string | null
 } 

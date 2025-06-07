@@ -4,9 +4,9 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext'
-import axios from 'axios';
+import axiosInstance from '@/lib/axios';
 
-export default function KakaoRedirect() {
+export default function NaverRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
@@ -18,20 +18,20 @@ export default function KakaoRedirect() {
     if (code && state) {
       (async () => {
         try {
-            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_HOST}/auth/oauth/naver`, { code, state });
+          const response = await axiosInstance.post('/auth/oauth/naver', { code, state });
+          const { accessToken, refreshToken } = response.data.data.jwtTokenDto;
+          
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
 
-            const accessToken = response.data.data.jwtTokenDto.accessToken;
-            
-            localStorage.setItem("accessToken", accessToken);
-
-            if (response.data.data.isRegister === true) {
-                router.push('/');
-            } else {
-                router.push('/signup?oauth=true')
-            }
-            } catch (error) {
-            console.error('OAuth 실패', error);
-            router.push('/login');
+          if (response.data.data.isRegister === true) {
+            router.push('/');
+          } else {
+            router.push('/signup?oauth=true')
+          }
+        } catch (error) {
+          console.error('OAuth 실패', error);
+          router.push('/login');
         }
       })();
     }

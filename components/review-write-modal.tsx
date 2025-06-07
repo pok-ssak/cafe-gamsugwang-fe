@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import axios from "axios"
+import axiosInstance from '@/lib/axios'
 
 interface ReviewWriteModalProps {
   placeId: number
@@ -35,17 +35,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
       const formData = new FormData()
       formData.append("image", file)
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/upload`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          withCredentials: true
-        }
-      )
+      const response = await axiosInstance.post('/upload', formData)
 
       const imageUrl = response.data.url
       setNewReview(prev => ({
@@ -85,17 +75,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
         imageUrl: newReview.imageUrl,
         rating: newReview.rate
       }
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/reviews`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          withCredentials: true
-        }
-      )
+      await axiosInstance.post('/reviews', payload)
       
       onClose()
       onReviewSubmit()

@@ -24,6 +24,8 @@ export default function ProfileEdit() {
   const [error, setError] = useState("")
   const [isImageChanged, setIsImageChanged] = useState(false)
   const [keywords, setKeywords] = useState<Array<{ word: string; count: number }>>([])
+  const [availableKeywords, setAvailableKeywords] = useState<string[]>([])
+  const [newKeywords, setNewKeywords] = useState<string[]>([])
 
   // 프로필 정보 가져오기
   useEffect(() => {
@@ -41,6 +43,16 @@ export default function ProfileEdit() {
           // Sort keywords by count in descending order
           const sortedKeywords = [...response.data.keywords].sort((a, b) => b.count - a.count)
           setKeywords(sortedKeywords)
+
+          // 사용자의 키워드와 초기 키워드를 Set으로 합치기
+          const initialKeywords = [
+            "아메리카노", "라떼", "에스프레소", "콜드브루", "디저트",
+            "브런치", "테라스", "북카페", "로스팅", "원두",
+            "스페셜티", "디카페인", "시그니처", "베이글", "케이크"
+          ]
+          const userKeywords = sortedKeywords.map(k => k.word)
+          const combinedKeywords = Array.from(new Set([...userKeywords, ...initialKeywords]))
+          setAvailableKeywords(combinedKeywords)
         }
       } catch (error) {
         console.error('프로필 로딩 실패:', error)
@@ -134,15 +146,69 @@ export default function ProfileEdit() {
     }
   }
 
-  const toggleKeyword = (word: string) => {
+  const toggleKeyword = async (word: string) => {
     setKeywords(prev => {
       const existingKeyword = prev.find(k => k.word === word)
       if (existingKeyword) {
         return prev.filter(k => k.word !== word)
       } else {
+        // 키워드가 선택되면 관련 키워드 검색
+        fetchRelatedKeywords(word)
         return [...prev, { word, count: 0 }]
       }
     })
+  }
+
+  // 관련 키워드 가져오기
+  const fetchRelatedKeywords = async (keyword: string) => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/keywords`, {
+        params: { query: keyword },
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        withCredentials: true
+      })
+
+      if (response.data && Array.isArray(response.data)) {
+        console.log('Fetched keywords:', response.data)
+        
+        // 현재 선택된 키워드의 인덱스 찾기
+        const selectedIndex = keywords.findIndex(k => k.word === keyword)
+        
+        // 새로운 키워드들을 현재 선택된 키워드 다음에 삽입
+        setKeywords(prev => {
+          const newKeywords = [...prev]
+          return newKeywords
+        })
+
+        // availableKeywords 업데이트
+        setAvailableKeywords(prev => {
+          const newKeywords = [...prev]
+          const uniqueNewKeywords = response.data.filter(
+            (word: string) => !newKeywords.includes(word)
+          )
+          
+          const keywordIndex = newKeywords.indexOf(keyword)
+          if (keywordIndex !== -1) {
+            newKeywords.splice(keywordIndex + 1, 0, ...uniqueNewKeywords)
+          }
+          
+          // 새로 추가된 키워드들을 별도로 저장
+          setNewKeywords(uniqueNewKeywords)
+          
+          // 1초 후에 애니메이션 클래스 제거
+          setTimeout(() => {
+            setNewKeywords([])
+          }, 1000)
+          
+          console.log('Updated availableKeywords:', newKeywords)
+          return newKeywords
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch related keywords:', error)
+    }
   }
 
   return (
@@ -231,17 +297,22 @@ export default function ProfileEdit() {
               관심 키워드
             </label>
             <div className="flex flex-wrap gap-2">
-              {INTEREST_KEYWORDS.map((keyword) => {
+              {availableKeywords.map((keyword) => {
                 const isSelected = keywords.some(k => k.word === keyword)
+                const isNew = newKeywords.includes(keyword)
                 return (
                   <button
                     key={keyword}
                     type="button"
                     onClick={() => toggleKeyword(keyword)}
-                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                    className={`px-3 py-1.5 rounded-full text-sm transition-all duration-300 ${
                       isSelected
                         ? 'bg-orange-500 text-white hover:bg-orange-600'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    } ${
+                      isNew 
+                        ? 'animate-fade-in-scale' 
+                        : ''
                     }`}
                   >
                     {keyword}
