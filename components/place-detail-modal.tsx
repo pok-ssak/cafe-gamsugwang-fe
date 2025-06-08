@@ -263,7 +263,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
         )
       )
 
-      const response = await axiosInstance.post(`/reviews/${reviewId}/like-toggle`)
+      const response = await axiosInstance.post(`/api/v1/reviews/${reviewId}/like-toggle`)
 
       // API 응답으로 받은 데이터로 상태 업데이트
       setReviews(prevReviews => 

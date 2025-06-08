@@ -25,8 +25,6 @@ export default function Home() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [showModal, setShowModal] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [showLeftButton, setShowLeftButton] = useState(false)
-  const [showRightButton, setShowRightButton] = useState(true)
   const [isList, setList] = useState(false)
   const router = useRouter()
   const [markers, setMarkers] = useState<any[]>([])
@@ -43,8 +41,6 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
-  const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
-  const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -244,6 +240,8 @@ export default function Home() {
     window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: any) {
       const latlng = mouseEvent.latLng
       
+      
+
       // 이전 클릭 마커 제거
       if (clickedMarkerRef.current) {
         clickedMarkerRef.current.setMap(null)
@@ -515,10 +513,10 @@ export default function Home() {
 
       if (place.isBookmarked) {
         // 북마크 삭제
-        await axiosInstance.delete(`/bookmarks/${placeId}`)
+        await axiosInstance.delete(`/api/v1/bookmarks/${placeId}`)
       } else {
         // 북마크 추가
-        await axiosInstance.post(`/bookmarks/${placeId}`)
+        await axiosInstance.post(`/api/v1/bookmarks/${placeId}`)
       }
 
       // places 배열 업데이트
