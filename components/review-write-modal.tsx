@@ -35,7 +35,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
       const formData = new FormData()
       formData.append("image", file)
 
-      const response = await axiosInstance.post('/upload', formData)
+      const response = await axiosInstance.post('/api/v1/upload', formData)
 
       const imageUrl = response.data.url
       setNewReview(prev => ({
@@ -75,7 +75,7 @@ export function ReviewWriteModal({ placeId, onClose, onReviewSubmit }: ReviewWri
         imageUrl: newReview.imageUrl,
         rating: newReview.rating
       }
-      await axiosInstance.post('/reviews', payload)
+      await axiosInstance.post('/api/v1/reviews', payload)
       
       onClose()
       onReviewSubmit()

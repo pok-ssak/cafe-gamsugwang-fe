@@ -31,7 +31,7 @@ export default function ProfileEdit() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/users/profile`, {
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/api/v1/users/profile`, {
           withCredentials: true,
           headers: {
             Authorization: `Bearer ${localStorage.getItem('accessToken')}`

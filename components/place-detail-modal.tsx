@@ -52,7 +52,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get(`/cafes/${initialPlace.id}`);
+      const response = await axiosInstance.get(`/api/v1/cafes/${initialPlace.id}`);
       const cafeData = response.data.data;
       setPlace(cafeData);
       setIsBookmarked(cafeData.isBookmarked || false);
@@ -69,7 +69,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     
     setIsLoadingReviews(true)
     try {
-      const response = await axiosInstance.get(`/cafes/${place.id}/reviews`)
+      const response = await axiosInstance.get(`api/v1/cafes/${place.id}/reviews`)
       setReviews(response.data.data.content)
     } catch (error) {
       console.error('Failed to fetch reviews:', error)
@@ -98,7 +98,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     if (!place) return;
     
     try {
-      const response = await axiosInstance.get(`/cafes/${place.id}/menus`);
+      const response = await axiosInstance.get(`/api/v1/cafes/${place.id}/menus`);
       setMenuItems(response.data.data);
     } catch (error) {
       console.error('Failed to fetch menu items:', error);

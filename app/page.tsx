@@ -767,14 +767,14 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div ref={mapRef} className="w-[80%] h-[100%] absolute inset-0" />
+        <div ref={mapRef} className="w-full h-full absolute inset-0" />
       )}
 
       {/* 리스트 뷰 오버레이 */}
       {isList && (
         <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-20" onClick={() => setList(false)}>
           <div className="absolute top-32 inset-x-0 bottom-0 bg-white" onClick={(e) => e.stopPropagation()}>
-            <div className="h-full flex flex-col">
+            <div className="h-[80%] flex flex-col">
               {/* 리스트 헤더 */}
               <div className="px-4 py-2 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">장소 목록</h2>
