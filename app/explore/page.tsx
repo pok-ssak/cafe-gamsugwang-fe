@@ -11,20 +11,20 @@ import { useCafeApi } from "@/hooks/useCafeApi"
 import { LocationProvider, useLocation } from '@/contexts/LocationContext'
 
 const CAFE_KEYWORDS = [
-  { id: 1, name: "로스팅 카페", color: "bg-pink-100" },
-  { id: 2, name: "디저트 카페", color: "bg-blue-100" },
-  { id: 3, name: "브런치 카페", color: "bg-green-100" },
-  { id: 4, name: "북카페", color: "bg-yellow-100" },
-  { id: 5, name: "테마 카페", color: "bg-purple-100" },
-  { id: 6, name: "공부 카페", color: "bg-orange-100" }
+  
+  { id: 1, name: "디저트 카페", color: "bg-blue-100" },
+  { id: 2, name: "브런치 카페", color: "bg-green-100" },
+  { id: 3, name: "북카페", color: "bg-yellow-100" },
+  { id: 4, name: "테마 카페", color: "bg-purple-100" },
+  { id: 5, name: "공부 카페", color: "bg-orange-100" },
+  { id: 6, name: "청귤", color: "bg-orange-100" },
+  { id: 7, name: "우도", color: "bg-orange-100" },
+  { id: 8, name: "오션뷰", color: "bg-orange-100" },
+  { id: 9, name: "바다", color: "bg-orange-100" },
 ]
 
 export default function Explore() {
-  return (
-    <LocationProvider>
-      <ExploreContent />
-    </LocationProvider>
-  )
+  return <ExploreContent />
 }
 
 function ExploreContent() {
@@ -32,21 +32,82 @@ function ExploreContent() {
   const nearbyScrollRef = useRef<HTMLDivElement>(null)
   const recommendedScrollRef = useRef<HTMLDivElement>(null)
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(CAFE_KEYWORDS.map(keyword => keyword.name))
   const [keywordPlaces, setKeywordPlaces] = useState<Place[]>([])
   const [isKeywordLoading, setIsKeywordLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'recommended' | 'keywords' | 'nearby'>('recommended')
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [places, setPlaces] = useState<Place[]>([])
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const observerTarget = useRef<HTMLDivElement>(null)
   
   const {
-    places,
+    places: placesFromPlacesHook,
     nearbyPlaces,
     isLoading: isPlacesLoading,
     refreshPlaces,
     refreshNearbyPlaces
   } = usePlaces()
 
-  const { fetchKeywordRecommendCafes } = useCafeApi()
+  const { fetchKeywordRecommendCafes, fetchSelfRecommendCafes } = useCafeApi()
   const { isTestMode, setIsTestMode } = useLocation()
+
+  const getCurrentPosition = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (isTestMode) {
+        // 테스트 모드일 때는 제주시청 좌표 반환
+        resolve({
+          coords: {
+            latitude: 33.4996213,
+            longitude: 126.5311884,
+            accuracy: 0,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null
+          },
+          timestamp: Date.now()
+        } as GeolocationPosition)
+      } else {
+        navigator.geolocation.getCurrentPosition(resolve, reject)
+      }
+    })
+  }
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && activeTab === 'recommended') {
+          try {
+            setIsLoadingMore(true)
+            const position = await getCurrentPosition()
+            const nextPage = page + 1
+            const result = await fetchSelfRecommendCafes(position.coords.latitude, position.coords.longitude, nextPage)
+            setPlaces((prev: Place[]) => [...prev, ...result.content])
+            setHasMore(!result.last)
+            setPage(nextPage)
+          } catch (error) {
+            console.error('Failed to fetch more places:', error)
+          } finally {
+            setIsLoadingMore(false)
+          }
+        }
+      },
+      { threshold: 1.0 }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current)
+      }
+    }
+  }, [hasMore, isLoadingMore, page, activeTab])
 
   const handleKeywordClick = async (keyword: string) => {
     setIsKeywordLoading(true)
@@ -59,8 +120,9 @@ function ExploreContent() {
       setSelectedKeywords(newKeywords)
 
       if (newKeywords.length > 0) {
+        console.log(newKeywords)
         const data = await fetchKeywordRecommendCafes(newKeywords)
-        setKeywordPlaces(data)
+        setKeywordPlaces(data.content)
       } else {
         setKeywordPlaces([])
       }
@@ -86,6 +148,25 @@ function ExploreContent() {
     }
   }
 
+  // 스크롤 이벤트 핸들러
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY
+      setShowScrollTop(scrollY > 300) // 300px 이상 스크롤되면 버튼 표시
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // 스크롤 최상단으로 이동하는 함수
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+  }
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -96,16 +177,7 @@ function ExploreContent() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* 테스트 모드 버튼 */}
-      <button
-        onClick={() => setIsTestMode(!isTestMode)}
-        className={`fixed bottom-4 right-4 p-3 rounded-full shadow-lg transition-colors z-50 ${
-          isTestMode ? 'bg-orange-500 text-white' : 'bg-white hover:bg-gray-50'
-        }`}
-      >
-        <span className="text-sm font-medium">테스트 모드</span>
-      </button>
-
+      {/* 헤더 */}
       <div className="bg-white border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <h1 className="text-xl font-bold">탐색</h1>
@@ -133,7 +205,7 @@ function ExploreContent() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                키워드
+                테마
               </button>
               <button
                 onClick={() => setActiveTab('nearby')}
@@ -186,6 +258,11 @@ function ExploreContent() {
                     </div>
                   </div>
                 ))}
+                <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
+                  {isLoadingMore && (
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                  )}
+                </div>
               </div>
             )}
           </div>

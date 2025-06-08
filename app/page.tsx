@@ -7,7 +7,6 @@ import { useMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
 import { Place } from "@/types/place"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
-import { Button } from "@/components/ui/button"
 import axiosInstance from "@/lib/axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
 import { usePlaces } from "@/contexts/PlacesContext"
@@ -46,7 +45,6 @@ export default function Home() {
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
   const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
-  const [isTestMode, setIsTestMode] = useState(false)
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -73,7 +71,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch popular places:', error)
       // 위치 정보를 가져오는데 실패한 경우 기본 좌표(제주시청) 사용
-      const response = await axiosInstance.get(`/cafes/self-recommend`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/self-recommend`, {
         params: {
           lat: 33.4996213,
           lon: 126.5311884
@@ -95,7 +93,7 @@ export default function Home() {
   // 카페 목록 가져오기
   const fetchPlaces = async (option?: string, keyword?: string) => {
     try {
-      const response = await axiosInstance.get(`/cafes/search`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/search`, {
         params: {
           query: keyword
         }
@@ -133,7 +131,7 @@ export default function Home() {
 
     try {
       setIsLoadingAutoComplete(true)
-      const response = await axiosInstance.get(`/cafes/auto-complete`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/auto-complete`, {
         params: { keyword }
       })
       console.log(response.data);  
@@ -769,7 +767,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div ref={mapRef} className="w-full h-full absolute inset-0" />
+        <div ref={mapRef} className="w-full h-[100vh] absolute inset-0" />
       )}
 
       {/* 리스트 뷰 오버레이 */}
@@ -1010,15 +1008,6 @@ export default function Home() {
         </button>
       )}
 
-      {/* 테스트 모드 버튼 */}
-      <button
-        onClick={() => setIsTestMode(!isTestMode)}
-        className={`absolute bottom-16 right-4 p-3 rounded-full shadow-lg transition-colors z-10 ${
-          isTestMode ? 'bg-orange-500 text-white' : 'bg-white hover:bg-gray-50'
-        }`}
-      >
-        <span className="text-sm font-medium">테스트 모드</span>
-      </button>
     </div>
   )
 }

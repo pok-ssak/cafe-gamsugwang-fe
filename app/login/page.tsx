@@ -64,12 +64,13 @@ export default function Login() {
     console.log(email)
     console.log(password)
     try {
-      const response = await axiosInstance.post('/auth/login', {
+      const response = await axiosInstance.post('/api/v1/auth/login', {
         email,
         password
       })
       // 서버에서 받은 accessToken과 refreshToken으로 로그인 처리
       const { accessToken, refreshToken } = response.data.data
+      localStorage.setItem('accessToken', accessToken)
       localStorage.setItem('refreshToken', refreshToken)
       login(accessToken)
       router.push(from)

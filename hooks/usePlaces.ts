@@ -21,7 +21,7 @@ export function usePlaces() {
       console.log('Fetching recommended places...')
       const data = await fetchSelfRecommendCafes(userLocation.lat, userLocation.lon)
       console.log('Recommended places fetched:', data)
-      setPlaces(data)
+      setPlaces(data.content)
     } catch (err) {
       console.error('Error fetching recommended places:', err)
       setError('추천 카페를 불러오는데 실패했습니다.')
@@ -39,7 +39,7 @@ export function usePlaces() {
       console.log('Fetching nearby places...')
       const data = await fetchNearbyCafes(userLocation.lat, userLocation.lon)
       console.log('Nearby places fetched:', data)
-      setNearbyPlaces(data)
+      setNearbyPlaces(data.content)
     } catch (err) {
       console.error('Error fetching nearby places:', err)
       setError('근처 카페를 불러오는데 실패했습니다.')
