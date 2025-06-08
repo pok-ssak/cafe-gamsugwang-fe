@@ -23,7 +23,7 @@ export default function Bookmarks() {
         }
 
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/bookmarks`,
+          `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/users/my/bookmarks`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`
@@ -63,7 +63,7 @@ export default function Bookmarks() {
       if (place.isBookmarked) {
         // 북마크 삭제
         await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_HOST}/bookmarks/${placeId}`,
+          `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/bookmarks/${placeId}`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`

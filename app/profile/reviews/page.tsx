@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Review } from "@/types/review"
-import axios from "axios"
+import axiosInstance from "@/lib/axios"
 import { Star, ThumbsUp, User, ArrowLeft } from "lucide-react"
 import Image from "next/image"
 import { FALLBACK_IMAGE_URL } from "@/app/constants"
@@ -16,15 +16,7 @@ export default function MyReviews() {
   useEffect(() => {
     const fetchMyReviews = async () => {
       try {
-        const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_HOST}/users/my/reviews`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-            },
-            withCredentials: true
-          }
-        )
+        const response = await axiosInstance.get('/api/v1/users/my/reviews')
         setReviews(response.data)
       } catch (error) {
         console.error('Failed to fetch reviews:', error)
@@ -35,6 +27,65 @@ export default function MyReviews() {
 
     fetchMyReviews()
   }, [])
+
+  const handleLikeToggle = async (reviewId: number) => {
+    try {
+      const accessToken = localStorage.getItem('accessToken')
+      if (!accessToken) {
+        if (confirm("좋아요를 누르려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
+          router.push("/login")
+        }
+        return
+      }
+
+      // 현재 리뷰 찾기
+      const currentReview = reviews.find(review => review.id === reviewId)
+      if (!currentReview) return
+
+      // 낙관적 업데이트: UI를 먼저 업데이트
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: !review.likedByUser,
+                likeCount: review.likedByUser ? review.likeCount - 1 : review.likeCount + 1
+              }
+            : review
+        )
+      )
+
+      const response = await axiosInstance.post(`/api/v1/reviews/${reviewId}/like-toggle`)
+
+      // API 응답으로 받은 데이터로 상태 업데이트
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: response.data.data.likedByUser,
+                likeCount: response.data.data.likeCount
+              }
+            : review
+        )
+      )
+
+    } catch (error) {
+      console.error('Failed to toggle like:', error)
+      // 실패 시 원래 상태로 되돌리기
+      setReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === reviewId 
+            ? {
+                ...review,
+                likedByUser: !review.likedByUser,
+                likeCount: review.likedByUser ? review.likeCount + 1 : review.likeCount - 1
+              }
+            : review
+        )
+      )
+    }
+  }
 
   if (isLoading) {
     return (
@@ -67,13 +118,17 @@ export default function MyReviews() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                      {review.imageUrl ? (
+                      {review.profileImageUrl ? (
                         <Image
-                          src={review.imageUrl}
+                          src={review.profileImageUrl}
                           alt={review.nickname}
                           width={32}
                           height={32}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = FALLBACK_IMAGE_URL;
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -81,10 +136,15 @@ export default function MyReviews() {
                         </div>
                       )}
                     </div>
-                    <span className="text-sm font-medium">{review.nickname}</span>
+                    <span className="text-sm font-medium truncate">{review.nickname}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1 text-gray-500">
+                    <button 
+                      onClick={() => handleLikeToggle(review.id)}
+                      className={`flex items-center gap-1 transition-colors ${
+                        review.likedByUser ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                      }`}
+                    >
                       <ThumbsUp className="w-4 h-4" />
                       <span className="text-xs">{review.likeCount}</span>
                     </button>
@@ -105,7 +165,7 @@ export default function MyReviews() {
                     />
                   </div>
                 )}
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 line-clamp-2">
                   <span className="inline-flex items-center gap-1 mr-2">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                     <span className="font-medium text-gray-700">{review.rating}</span>

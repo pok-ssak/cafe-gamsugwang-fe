@@ -42,6 +42,9 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
   const roadviewRef = useRef<HTMLDivElement>(null)
   const [roadview, setRoadview] = useState<any>(null)
   const [roadviewClient, setRoadviewClient] = useState<any>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [showExpandButton, setShowExpandButton] = useState(false)
+  const keywordsRef = useRef<HTMLDivElement>(null)
 
   // 카페 상세 정보 가져오기
   const fetchCafeDetails = async () => {
@@ -344,6 +347,28 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     }
   }, [place])
 
+  // 키워드 컨테이너의 높이를 체크하여 더보기 버튼 표시 여부 결정
+  useEffect(() => {
+    if (keywordsRef.current && place?.keywordList) {
+      const container = keywordsRef.current;
+      const lineHeight = 24; // 키워드 한 줄의 높이 (px)
+      const maxHeight = lineHeight * 3; // 3줄 높이
+      
+      // 컨테이너의 실제 높이 계산
+      const actualHeight = container.scrollHeight;
+      const shouldShowExpandButton = actualHeight > maxHeight;
+      
+      setShowExpandButton(shouldShowExpandButton);
+      
+      // 초기 상태에서는 접혀있도록 설정
+      if (!isExpanded) {
+        container.style.maxHeight = `${maxHeight}px`;
+      } else {
+        container.style.maxHeight = 'none';
+      }
+    }
+  }, [place?.keywordList, isExpanded]);
+
   if (!place) return null
 
   return (
@@ -435,17 +460,32 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
               </div>
             </div>
             {place.keywordList && place.keywordList.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {place.keywordList.map((keyword, index) => (
-                      <span 
-                        key={index}
-                        className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
-                      >
-                        {keyword.keyword}
-                      </span>
-                    ))}
+              <div className="relative">
+                <div 
+                  ref={keywordsRef}
+                  className="flex flex-wrap gap-2 mt-2 transition-all duration-300 overflow-hidden"
+                >
+                  {place.keywordList.map((keyword, index) => (
+                    <span 
+                      key={index}
+                      className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                    >
+                      {keyword.keyword}
+                    </span>
+                  ))}
+                </div>
+                {showExpandButton && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="text-xs text-gray-500 hover:text-gray-700 mt-2"
+                    >
+                      {isExpanded ? '접기' : '더보기'}
+                    </button>
                   </div>
                 )}
+              </div>
+            )}
             <p className="text-gray-600 leading-relaxed mb-6">
               {place.description}
             </p>
@@ -539,10 +579,10 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
                             <span className="text-xs text-gray-500">{review.createdAt}</span>
                           </div>
                         </div>
-                        {review.imageUrl && (review.imageUrl.startsWith('https://') || review.imageUrl.startsWith('http://') || review.imageUrl.startsWith('/')) && (
+                        {review.imageUrl && (
                           <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
                             <Image
-                              src={review.imageUrl || FALLBACK_IMAGE_URL}
+                              src={review.imageUrl}
                               alt="리뷰 이미지"
                               fill
                               className="object-cover"

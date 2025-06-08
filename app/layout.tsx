@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import BottomNavigation from "@/components/bottom-navigation"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { PlacesProvider } from "@/contexts/PlacesContext"
+import { LocationProvider } from "@/contexts/LocationContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,10 +25,12 @@ export default function RootLayout({
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <AuthProvider>
           <PlacesProvider>
-            <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-              <main className="flex-1 relative overflow-y-auto">{children}</main>
-              <BottomNavigation />
-            </ThemeProvider>
+            <LocationProvider>
+              <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+                <main className="flex-1 relative overflow-y-auto pb-16">{children}</main>
+                <BottomNavigation />
+              </ThemeProvider>
+            </LocationProvider>
           </PlacesProvider>
         </AuthProvider>
       </body>

@@ -73,7 +73,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch popular places:', error)
       // 위치 정보를 가져오는데 실패한 경우 기본 좌표(제주시청) 사용
-      const response = await axiosInstance.get(`/cafes/self-recommend`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/self-recommend`, {
         params: {
           lat: 33.4996213,
           lon: 126.5311884
@@ -95,7 +95,7 @@ export default function Home() {
   // 카페 목록 가져오기
   const fetchPlaces = async (option?: string, keyword?: string) => {
     try {
-      const response = await axiosInstance.get(`/cafes/search`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/search`, {
         params: {
           query: keyword
         }

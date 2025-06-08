@@ -22,7 +22,7 @@ export default function Profile() {
   
   const  fetchProfile = async () => {
     try {
-      const response = await axiosInstance.get('/users/profile')
+      const response = await axiosInstance.get('/api/v1/users/profile')
       console.log(response.data)
       setProfile(response.data)
     } catch (error) {
