@@ -27,7 +27,6 @@ export const useCafeApi = () => {
     try {
       const response = await axiosInstance.get('/api/v2/cafes/self-recommend', {
         params: { 
-          option: "location",
           lat: latitude, 
           lon: longitude,
           page: page

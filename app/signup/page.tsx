@@ -85,7 +85,7 @@ export default function Signup() {
     setErrorMessage("")
     try {
       await axios.post(
-        `${process.env.NEXT_PUBLIC_API_HOST}/auth/email-validate`,
+        `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/auth/email-validate`,
         { email: email }
       )
       setIsEmailVerified(true)
@@ -142,8 +142,8 @@ export default function Signup() {
           console.log(requestBody)
   
       const url = isOAuth
-        ? `${process.env.NEXT_PUBLIC_API_HOST}/auth/oauth/signup`
-        : `${process.env.NEXT_PUBLIC_API_HOST}/auth/signup`;
+        ? `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/auth/oauth/signup`
+        : `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/auth/signup`;
 
       const token = isOAuth ? localStorage.getItem('accessToken') : null;
 

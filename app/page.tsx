@@ -11,7 +11,6 @@ import axiosInstance from "@/lib/axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
 import { usePlaces } from "@/contexts/PlacesContext"
 import { useLocation } from "@/contexts/LocationContext"
-import { useCafeApi } from "@/hooks/useCafeApi"
 
 declare global {
   interface Window {
@@ -97,9 +96,6 @@ export default function Home() {
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
   const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
-  const [isKeywordLoading, setIsKeywordLoading] = useState(false)
-  const { fetchKeywordRecommendCafes } = useCafeApi()
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -614,38 +610,7 @@ export default function Home() {
   // places 배열이 변경될 때마다 실행
   useEffect(() => {
     console.log("places updated:", places)
-    if (places.length > 0) {
-      setSelectedPlace(places[0]) // places가 변경될 때마다 첫 번째 장소 선택
-    }
   }, [places])
-
-  const handleKeywordClick = async (keyword: string) => {
-    setIsKeywordLoading(true)
-    try {
-      // 이미 선택된 키워드면 제거, 아니면 추가
-      const newKeywords = selectedKeywords.includes(keyword)
-        ? selectedKeywords.filter(k => k !== keyword)
-        : [...selectedKeywords, keyword]
-      
-      setSelectedKeywords(newKeywords)
-
-      if (newKeywords.length > 0) {
-        const data = await fetchKeywordRecommendCafes(newKeywords)
-        // 검색 결과가 있을 때만 상태 갱신
-        if (data.content.length > 0) {
-          setPlaces(data.content)
-          setSelectedPlace(data.content[0]) // 첫 번째 장소 선택
-        }
-      } else {
-        // 키워드가 모두 해제되면 인기 카페 목록으로 복귀
-        await fetchPopularPlaces()
-      }
-    } catch (error) {
-      console.error('Failed to fetch keyword places:', error)
-    } finally {
-      setIsKeywordLoading(false)
-    }
-  }
 
   return (
     <div className="relative w-full h-full">

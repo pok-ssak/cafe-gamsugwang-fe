@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, Star, Heart, MapPin } from "lucide-react"
+import { ChevronRight, Star, Heart } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Place } from "@/types/place"
@@ -54,10 +54,6 @@ function ExploreContent() {
   const [hasMorePopular, setHasMorePopular] = useState(true)
   const [popularPage, setPopularPage] = useState(1)
   const [isLoadingMorePopular, setIsLoadingMorePopular] = useState(false)
-  const [selectedSort, setSelectedSort] = useState("popular")
-  const [error, setError] = useState<string | null>(null)
-  const { userLocation, refreshLocation } = useLocation()
-  const [currentAddress, setCurrentAddress] = useState("")
   
   const {
     places: placesFromPlacesHook,
@@ -271,22 +267,6 @@ function ExploreContent() {
     }
   }
 
-  // 현재 주소 가져오기
-  useEffect(() => {
-    if (userLocation) {
-      const geocoder = new window.kakao.maps.services.Geocoder()
-      geocoder.coord2Address(userLocation.lon, userLocation.lat, (result: any, status: any) => {
-        if (status === window.kakao.maps.services.Status.OK) {
-          const roadAddress = result[0].road_address?.address_name
-          const address = result[0].address.address_name
-          // 도로명주소에서 시/도 부분 제거
-          const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
-          setCurrentAddress(cleanAddress)
-        }
-      })
-    }
-  }, [userLocation])
-
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -479,11 +459,6 @@ function ExploreContent() {
         {/* 근처 카페 탭 */}
         {activeTab === 'nearby' && (
           <div className="space-y-4">
-            {/* 현재 주소 표시 */}
-            <div className="flex items-center gap-2 text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span className="text-sm">{currentAddress || "위치 정보를 가져오는 중..."}</span>
-            </div>
             {isPlacesLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
