@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, Star, Heart } from "lucide-react"
+import { ChevronRight, Star, Heart, MapPin } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Place } from "@/types/place"
@@ -9,7 +9,6 @@ import { FALLBACK_IMAGE_URL } from "@/app/constants"
 import { usePlaces } from "@/hooks/usePlaces"
 import { useCafeApi } from "@/hooks/useCafeApi"
 import { LocationProvider, useLocation } from '@/contexts/LocationContext'
-import axiosInstance from "@/lib/axiosInstance"
 import { PlaceCard } from "@/components/place-card"
 
 const CAFE_KEYWORDS = [
@@ -54,6 +53,7 @@ function ExploreContent() {
   const [hasMorePopular, setHasMorePopular] = useState(true)
   const [popularPage, setPopularPage] = useState(1)
   const [isLoadingMorePopular, setIsLoadingMorePopular] = useState(false)
+  const [currentAddress, setCurrentAddress] = useState<string>("위치 정보를 가져오는 중...")
   
   const {
     places: placesFromPlacesHook,
@@ -67,7 +67,35 @@ function ExploreContent() {
   } = usePlaces()
 
   const { fetchKeywordRecommendCafes, fetchSelfRecommendCafes } = useCafeApi()
-  const { isTestMode, setIsTestMode } = useLocation()
+  const { isTestMode, setIsTestMode, userLocation, refreshLocation } = useLocation()
+
+  // 좌표를 주소로 변환하는 함수
+  const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
+    if (!window.kakao || !window.kakao.maps) return "위치 정보를 가져오는 중...";
+    
+    return new Promise((resolve) => {
+      const geocoder = new window.kakao.maps.services.Geocoder();
+      geocoder.coord2Address(lng, lat, (result: any, status: any) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          const roadAddress = result[0].road_address?.address_name;
+          const address = result[0].address.address_name;
+          // 도로명주소에서 시/도 부분 제거
+          const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '');
+          resolve(cleanAddress);
+        } else {
+          resolve("위치 정보를 가져오는 중...");
+        }
+      });
+    });
+  };
+
+  // 위치 정보가 변경될 때마다 주소 업데이트
+  useEffect(() => {
+    if (userLocation) {
+      getAddressFromCoords(userLocation.lat, userLocation.lon)
+        .then((address: string) => setCurrentAddress(address));
+    }
+  }, [userLocation]);
 
   const getCurrentPosition = (): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
@@ -134,12 +162,12 @@ function ExploreContent() {
       
       setSelectedKeywords(newKeywords)
 
+      // 선택된 키워드가 있으면 검색, 없으면 빈 배열로 초기화
       if (newKeywords.length > 0) {
-        console.log(newKeywords)
         const data = await fetchKeywordRecommendCafes(newKeywords)
-        setKeywordPlaces(data.content)
+        setPlaces(data.content)
       } else {
-        setKeywordPlaces([])
+        setPlaces([])
       }
     } catch (error) {
       console.error('Failed to fetch keyword places:', error)
@@ -213,19 +241,16 @@ function ExploreContent() {
     }
 
     try {
-      const response = await axiosInstance.get('/api/v2/cafes/popular', {
-        params: {
-          page: page
-        }
-      })
+      const position = await getCurrentPosition()
+      const data = await fetchSelfRecommendCafes(position.coords.latitude, position.coords.longitude, page)
       
       if (page === 1) {
-        setPopularPlaces(response.data.data.content)
+        setPopularPlaces(data.content)
       } else {
-        setPopularPlaces(prev => [...prev, ...response.data.data.content])
+        setPopularPlaces(prev => [...prev, ...data.content])
       }
       
-      setHasMorePopular(!response.data.data.last)
+      setHasMorePopular(!data.last)
       setPopularPage(page)
     } catch (error) {
       console.error('Failed to fetch popular places:', error)
@@ -436,13 +461,13 @@ function ExploreContent() {
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                   </div>
-                ) : keywordPlaces.length === 0 ? (
+                ) : places.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     해당 키워드의 카페가 없어요!
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    {keywordPlaces.map((place) => (
+                    {places.map((place) => (
                       <PlaceCard
                         key={place.id}
                         place={place}
@@ -459,6 +484,28 @@ function ExploreContent() {
         {/* 근처 카페 탭 */}
         {activeTab === 'nearby' && (
           <div className="space-y-4">
+            {/* 현재 위치 표시 */}
+            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-orange-500" />
+                <span className="text-gray-700 font-medium">
+                  {currentAddress}
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  await refreshLocation();
+                  if (userLocation) {
+                    const address = await getAddressFromCoords(userLocation.lat, userLocation.lon);
+                    setCurrentAddress(address);
+                  }
+                }}
+                className="text-sm text-orange-500 hover:text-orange-600 font-medium"
+              >
+                위치 새로고침
+              </button>
+            </div>
+
             {isPlacesLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>

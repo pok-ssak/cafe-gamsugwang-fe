@@ -17,7 +17,7 @@ export default function GoogleRedirect() {
     if (code) {
       (async () => {
         try {
-          const response = await axiosInstance.post('/auth/oauth/google', { code });
+          const response = await axiosInstance.post('/api/v1/auth/oauth/google', { code });
           const { accessToken, refreshToken } = response.data.data.jwtTokenDto;
           
           localStorage.setItem("accessToken", accessToken);

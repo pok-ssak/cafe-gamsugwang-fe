@@ -18,7 +18,7 @@ export default function KakaoRedirect() {
       (async () => {
         try {
           console.log(code)
-          const response = await axiosInstance.post('/auth/oauth/kakao', { code });
+          const response = await axiosInstance.post('/api/v1/auth/oauth/kakao', { code });
           console.log(response)
           const { accessToken, refreshToken } = response.data.data.jwtTokenDto;
 

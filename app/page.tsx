@@ -96,6 +96,8 @@ export default function Home() {
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
   const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
+  const [isKeywordLoading, setIsKeywordLoading] = useState(false)
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -141,6 +143,16 @@ export default function Home() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // 키워드 기반 카페 추천 가져오기
+  const fetchKeywordRecommendCafes = async (keywords: string[]) => {
+    const response = await axiosInstance.get('/api/v1/cafes/keyword-recommend', {
+      params: {
+        keywords: keywords.join(',')
+      }
+    })
+    return response.data.data
   }
 
   // 카페 목록 가져오기
@@ -611,6 +623,30 @@ export default function Home() {
   useEffect(() => {
     console.log("places updated:", places)
   }, [places])
+
+  const handleKeywordClick = async (keyword: string) => {
+    setIsKeywordLoading(true)
+    try {
+      // 이미 선택된 키워드면 제거, 아니면 추가
+      const newKeywords = selectedKeywords.includes(keyword)
+        ? selectedKeywords.filter(k => k !== keyword)
+        : [...selectedKeywords, keyword]
+      
+      setSelectedKeywords(newKeywords)
+
+      if (newKeywords.length > 0) {
+        const data = await fetchKeywordRecommendCafes(newKeywords)
+        setPlaces(data.content)
+      } else {
+        // 키워드가 모두 해제되면 인기 카페 목록으로 복귀
+        await fetchPopularPlaces()
+      }
+    } catch (error) {
+      console.error('Failed to fetch keyword places:', error)
+    } finally {
+      setIsKeywordLoading(false)
+    }
+  }
 
   return (
     <div className="relative w-full h-full">

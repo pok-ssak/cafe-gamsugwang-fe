@@ -18,7 +18,7 @@ export function PlaceCard({ place, onClick, rank, variant = 'default' }: PlaceCa
   if (variant === 'ranking' && rank && rank <= 3) {
     return (
       <div
-        className="relative bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+        className="place-card bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
         onClick={onClick}
       >
         <div className="absolute top-3 left-3 z-10 text-2xl">
@@ -50,7 +50,7 @@ export function PlaceCard({ place, onClick, rank, variant = 'default' }: PlaceCa
 
   return (
     <div
-      className="relative bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      className="place-card bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
       onClick={onClick}
     >
       {rank && rank <= 3 && (
