@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, Star, Heart } from "lucide-react"
+import { ChevronRight, Star, Heart, MapPin } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Place } from "@/types/place"
@@ -9,9 +9,10 @@ import { FALLBACK_IMAGE_URL } from "@/app/constants"
 import { usePlaces } from "@/hooks/usePlaces"
 import { useCafeApi } from "@/hooks/useCafeApi"
 import { LocationProvider, useLocation } from '@/contexts/LocationContext'
+import axiosInstance from "@/lib/axiosInstance"
+import { PlaceCard } from "@/components/place-card"
 
 const CAFE_KEYWORDS = [
-  
   { id: 1, name: "디저트 카페", color: "bg-blue-100" },
   { id: 2, name: "브런치 카페", color: "bg-green-100" },
   { id: 3, name: "북카페", color: "bg-yellow-100" },
@@ -22,6 +23,12 @@ const CAFE_KEYWORDS = [
   { id: 8, name: "오션뷰", color: "bg-orange-100" },
   { id: 9, name: "바다", color: "bg-orange-100" },
 ]
+
+const RANKING_BADGES = {
+  1: '🥇',
+  2: '🥈',
+  3: '🥉',
+}
 
 export default function Explore() {
   return <ExploreContent />
@@ -35,18 +42,30 @@ function ExploreContent() {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(CAFE_KEYWORDS.map(keyword => keyword.name))
   const [keywordPlaces, setKeywordPlaces] = useState<Place[]>([])
   const [isKeywordLoading, setIsKeywordLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'recommended' | 'keywords' | 'nearby'>('recommended')
+  const [activeTab, setActiveTab] = useState<'recommended' | 'keywords' | 'nearby' | 'ranking'>('ranking')
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
+  const [popularPlaces, setPopularPlaces] = useState<Place[]>([])
+  const [isPopularLoading, setIsPopularLoading] = useState(false)
+  const [hasMorePopular, setHasMorePopular] = useState(true)
+  const [popularPage, setPopularPage] = useState(1)
+  const [isLoadingMorePopular, setIsLoadingMorePopular] = useState(false)
+  const [selectedSort, setSelectedSort] = useState("popular")
+  const [error, setError] = useState<string | null>(null)
+  const { userLocation, refreshLocation } = useLocation()
+  const [currentAddress, setCurrentAddress] = useState("")
   
   const {
     places: placesFromPlacesHook,
     nearbyPlaces,
     isLoading: isPlacesLoading,
+    hasMoreNearby,
+    isLoadingMoreNearby,
+    loadMoreNearbyPlaces,
     refreshPlaces,
     refreshNearbyPlaces
   } = usePlaces()
@@ -167,6 +186,107 @@ function ExploreContent() {
     })
   }
 
+  // 근처 카페 탭의 무한 스크롤을 위한 Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (entries[0].isIntersecting && hasMoreNearby && !isLoadingMoreNearby && activeTab === 'nearby') {
+          await loadMoreNearbyPlaces()
+        }
+      },
+      { threshold: 1.0 }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current)
+      }
+    }
+  }, [hasMoreNearby, isLoadingMoreNearby, activeTab])
+
+  // 인기 카페 목록 가져오기
+  const fetchPopularPlaces = async (page: number = 1) => {
+    if (page === 1) {
+      setIsPopularLoading(true)
+    } else {
+      setIsLoadingMorePopular(true)
+    }
+
+    try {
+      const response = await axiosInstance.get('/api/v2/cafes/popular', {
+        params: {
+          page: page
+        }
+      })
+      
+      if (page === 1) {
+        setPopularPlaces(response.data.data.content)
+      } else {
+        setPopularPlaces(prev => [...prev, ...response.data.data.content])
+      }
+      
+      setHasMorePopular(!response.data.data.last)
+      setPopularPage(page)
+    } catch (error) {
+      console.error('Failed to fetch popular places:', error)
+    } finally {
+      if (page === 1) {
+        setIsPopularLoading(false)
+      } else {
+        setIsLoadingMorePopular(false)
+      }
+    }
+  }
+
+  // 인기 카페 탭의 무한 스크롤을 위한 Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (entries[0].isIntersecting && hasMorePopular && !isLoadingMorePopular && activeTab === 'ranking') {
+          await fetchPopularPlaces(popularPage + 1)
+        }
+      },
+      { threshold: 1.0 }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current)
+      }
+    }
+  }, [hasMorePopular, isLoadingMorePopular, popularPage, activeTab])
+
+  const handleTabChange = (tab: 'recommended' | 'keywords' | 'nearby' | 'ranking') => {
+    setActiveTab(tab)
+    if (tab === 'keywords' && selectedKeywords.length > 0) {
+      handleKeywordClick(selectedKeywords[0])
+    }
+  }
+
+  // 현재 주소 가져오기
+  useEffect(() => {
+    if (userLocation) {
+      const geocoder = new window.kakao.maps.services.Geocoder()
+      geocoder.coord2Address(userLocation.lon, userLocation.lat, (result: any, status: any) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          const roadAddress = result[0].road_address?.address_name
+          const address = result[0].address.address_name
+          // 도로명주소에서 시/도 부분 제거
+          const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+          setCurrentAddress(cleanAddress)
+        }
+      })
+    }
+  }, [userLocation])
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -178,52 +298,115 @@ function ExploreContent() {
   return (
     <div className="min-h-full bg-white">
       {/* 헤더 */}
-      <div className="bg-white border-b">
+      <div className="bg-white">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <h1 className="text-xl font-bold">탐색</h1>
         </div>
+      </div>
 
-        {/* 탭 네비게이션 */}
-        <div className="border-b">
-          <div className="max-w-2xl mx-auto px-4">
-            <div className="flex space-x-8">
-              <button
-                onClick={() => setActiveTab('recommended')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'recommended'
-                    ? 'border-orange-500 text-orange-500'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                맞춤 추천
-              </button>
-              <button
-                onClick={() => setActiveTab('keywords')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'keywords'
-                    ? 'border-orange-500 text-orange-500'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                테마
-              </button>
-              <button
-                onClick={() => setActiveTab('nearby')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'nearby'
-                    ? 'border-orange-500 text-orange-500'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                근처 카페
-              </button>
-            </div>
+      {/* 탭 네비게이션 */}
+      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => handleTabChange('ranking')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'ranking'
+                  ? 'border-orange-500 text-orange-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              랭킹
+            </button>
+            <button
+              onClick={() => handleTabChange('recommended')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'recommended'
+                  ? 'border-orange-500 text-orange-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              맞춤 추천
+            </button>
+            <button
+              onClick={() => handleTabChange('keywords')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'keywords'
+                  ? 'border-orange-500 text-orange-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              테마
+            </button>
+            <button
+              onClick={() => handleTabChange('nearby')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'nearby'
+                  ? 'border-orange-500 text-orange-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              근처 카페
+            </button>
           </div>
         </div>
       </div>
 
       {/* 탭 컨텐츠 */}
       <div className="max-w-2xl mx-auto px-4 py-4">
+        {/* 랭킹 탭 */}
+        {activeTab === 'ranking' && (
+          <div className="space-y-6">
+            {/* 상위 랭킹 섹션 */}
+            {popularPlaces.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-gray-900">이번 주 인기 카페</h2>
+                <div className="grid grid-cols-1 gap-4">
+                  {popularPlaces.slice(0, 3).map((place, index) => (
+                    <PlaceCard
+                      key={place.id}
+                      place={place}
+                      onClick={() => setSelectedPlace(place)}
+                      rank={index + 1}
+                      variant="ranking"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 전체 랭킹 목록 */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-gray-900">전체 랭킹</h2>
+              {isPopularLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : popularPlaces.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  추천 카페가 없어요!
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {popularPlaces.map((place, index) => (
+                    <PlaceCard
+                      key={place.id}
+                      place={place}
+                      onClick={() => setSelectedPlace(place)}
+                      rank={index + 1}
+                    />
+                  ))}
+                  <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
+                    {isLoadingMorePopular && (
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 맞춤 추천 탭 */}
         {activeTab === 'recommended' && (
           <div className="space-y-4">
@@ -234,29 +417,11 @@ function ExploreContent() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {places.map((place) => (
-                  <div
+                  <PlaceCard
                     key={place.id}
-                    className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                    place={place}
                     onClick={() => setSelectedPlace(place)}
-                  >
-                    <img 
-                      src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                      alt={place.title}
-                      className="w-full h-32 object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = FALLBACK_IMAGE_URL;
-                      }}
-                    />
-                    <div className="p-3">
-                      <h3 className="font-bold text-gray-900">{place.title}</h3>
-                      <div className="flex items-center mt-1">
-                        <span className="text-yellow-400">★</span>
-                        <span className="ml-1 text-sm text-gray-600">{place.rate}</span>
-                        <span className="ml-1 text-sm text-gray-500">({place.reviewCount})</span>
-                      </div>
-                    </div>
-                  </div>
+                  />
                 ))}
                 <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
                   {isLoadingMore && (
@@ -298,29 +463,11 @@ function ExploreContent() {
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
                     {keywordPlaces.map((place) => (
-                      <div
+                      <PlaceCard
                         key={place.id}
-                        className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                        place={place}
                         onClick={() => setSelectedPlace(place)}
-                      >
-                        <img 
-                          src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                          alt={place.title}
-                          className="w-full h-32 object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = FALLBACK_IMAGE_URL;
-                          }}
-                        />
-                        <div className="p-3">
-                          <h3 className="font-bold text-gray-900">{place.title}</h3>
-                          <div className="flex items-center mt-1">
-                            <span className="text-yellow-400">★</span>
-                            <span className="ml-1 text-sm text-gray-600">{place.rate}</span>
-                            <span className="ml-1 text-sm text-gray-500">({place.reviewCount})</span>
-                          </div>
-                        </div>
-                      </div>
+                      />
                     ))}
                   </div>
                 )}
@@ -332,6 +479,11 @@ function ExploreContent() {
         {/* 근처 카페 탭 */}
         {activeTab === 'nearby' && (
           <div className="space-y-4">
+            {/* 현재 주소 표시 */}
+            <div className="flex items-center gap-2 text-gray-600">
+              <MapPin className="w-4 h-4" />
+              <span className="text-sm">{currentAddress || "위치 정보를 가져오는 중..."}</span>
+            </div>
             {isPlacesLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
@@ -343,31 +495,17 @@ function ExploreContent() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {nearbyPlaces.map((place) => (
-                  <div
+                  <PlaceCard
                     key={place.id}
-                    className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                    place={place}
                     onClick={() => setSelectedPlace(place)}
-                  >
-
-                    <img 
-                      src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                      alt={place.title}
-                      className="w-full h-32 object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = FALLBACK_IMAGE_URL;
-                      }}
-                    />
-                    <div className="p-3">
-                      <h3 className="font-bold text-gray-900">{place.title}</h3>
-                      <div className="flex items-center mt-1">
-                        <span className="text-yellow-400">★</span>
-                        <span className="ml-1 text-sm text-gray-600">{place.rate}</span>
-                        <span className="ml-1 text-sm text-gray-500">({place.reviewCount})</span>
-                      </div>
-                    </div>
-                  </div>
+                  />
                 ))}
+                <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
+                  {isLoadingMoreNearby && (
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                  )}
+                </div>
               </div>
             )}
           </div>

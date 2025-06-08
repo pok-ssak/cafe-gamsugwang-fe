@@ -14,6 +14,7 @@ interface LocationContextType {
   isTestMode: boolean
   setIsTestMode: (isTestMode: boolean) => void
   refreshLocation: () => void
+  setManualLocation: (location: Location) => void
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined)
@@ -75,6 +76,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
     }
   }
 
+  // 수동으로 위치 설정
+  const setManualLocation = (location: Location) => {
+    setUserLocation(location)
+  }
+
   // 초기 위치 설정
   useEffect(() => {
     getUserLocation()
@@ -93,7 +99,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
         error,
         isTestMode,
         setIsTestMode,
-        refreshLocation: getUserLocation
+        refreshLocation: getUserLocation,
+        setManualLocation
       }}
     >
       {children}

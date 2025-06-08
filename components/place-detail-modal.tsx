@@ -311,10 +311,10 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
 
       if (isBookmarked) {
         // 북마크 삭제
-        await axiosInstance.delete(`/bookmarks/${place.id}`)
+        await axiosInstance.delete(`/api/v1/bookmarks/${place.id}`)
       } else {
         // 북마크 추가
-        await axiosInstance.post(`/bookmarks/${place.id}`)
+        await axiosInstance.post(`/api/v1/bookmarks/${place.id}`)
       }
 
       const newBookmarkState = !isBookmarked

@@ -8,6 +8,9 @@ export function usePlaces() {
   const [nearbyPlaces, setNearbyPlaces] = useState<Place[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nearbyPage, setNearbyPage] = useState(1)
+  const [hasMoreNearby, setHasMoreNearby] = useState(true)
+  const [isLoadingMoreNearby, setIsLoadingMoreNearby] = useState(false)
   
   const { fetchSelfRecommendCafes, fetchNearbyCafes } = useCafeApi()
   const { userLocation, isLoading: isLocationLoading, error: locationError } = useLocation()
@@ -30,28 +33,50 @@ export function usePlaces() {
     }
   }
 
-  const fetchNearbyPlaces = async () => {
+  const fetchNearbyPlaces = async (page: number = 1) => {
     if (!userLocation) return
 
-    setIsLoading(true)
+    if (page === 1) {
+      setIsLoading(true)
+    } else {
+      setIsLoadingMoreNearby(true)
+    }
+    
     setError(null)
     try {
       console.log('Fetching nearby places...')
-      const data = await fetchNearbyCafes(userLocation.lat, userLocation.lon)
+      const data = await fetchNearbyCafes(userLocation.lat, userLocation.lon, page)
       console.log('Nearby places fetched:', data)
-      setNearbyPlaces(data.content)
+      
+      if (page === 1) {
+        setNearbyPlaces(data.content)
+      } else {
+        setNearbyPlaces(prev => [...prev, ...data.content])
+      }
+      
+      setHasMoreNearby(!data.last)
+      setNearbyPage(page)
     } catch (err) {
       console.error('Error fetching nearby places:', err)
       setError('근처 카페를 불러오는데 실패했습니다.')
     } finally {
-      setIsLoading(false)
+      if (page === 1) {
+        setIsLoading(false)
+      } else {
+        setIsLoadingMoreNearby(false)
+      }
     }
+  }
+
+  const loadMoreNearbyPlaces = async () => {
+    if (!hasMoreNearby || isLoadingMoreNearby) return
+    await fetchNearbyPlaces(nearbyPage + 1)
   }
 
   useEffect(() => {
     if (userLocation) {
       fetchPlaces()
-      fetchNearbyPlaces()
+      fetchNearbyPlaces(1)
     }
   }, [userLocation])
 
@@ -60,14 +85,19 @@ export function usePlaces() {
   }
 
   const refreshNearbyPlaces = () => {
-    fetchNearbyPlaces()
+    setNearbyPage(1)
+    setHasMoreNearby(true)
+    fetchNearbyPlaces(1)
   }
 
   return {
     places,
     nearbyPlaces,
-    isLoading: isLoading || isLocationLoading,
-    error: error || locationError,
+    isLoading,
+    error,
+    hasMoreNearby,
+    isLoadingMoreNearby,
+    loadMoreNearbyPlaces,
     refreshPlaces,
     refreshNearbyPlaces
   }

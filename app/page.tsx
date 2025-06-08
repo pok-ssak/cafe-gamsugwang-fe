@@ -10,6 +10,8 @@ import { PlaceDetailModal } from "@/components/place-detail-modal"
 import axiosInstance from "@/lib/axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
 import { usePlaces } from "@/contexts/PlacesContext"
+import { useLocation } from "@/contexts/LocationContext"
+import { useCafeApi } from "@/hooks/useCafeApi"
 
 declare global {
   interface Window {
@@ -17,6 +19,55 @@ declare global {
   }
 }
 
+// kakao.maps 네임스페이스 타입 선언
+declare namespace kakao.maps {
+  class LatLng {
+    constructor(lat: number, lng: number)
+    getLat(): number
+    getLng(): number
+  }
+
+  class Map {
+    constructor(container: HTMLElement, options: any)
+    setCenter(position: LatLng): void
+    setLevel(level: number): void
+    panTo(position: LatLng): void
+  }
+
+  class Marker {
+    constructor(options: any)
+    setMap(map: Map | null): void
+    overlay?: CustomOverlay
+  }
+
+  class MarkerImage {
+    constructor(src: string, size: Size)
+  }
+
+  class Size {
+    constructor(width: number, height: number)
+  }
+
+  class CustomOverlay {
+    constructor(options: any)
+    setMap(map: Map | null): void
+  }
+
+  namespace event {
+    interface MouseEvent {
+      latLng: LatLng
+    }
+  }
+
+  namespace services {
+    class Geocoder {
+      coord2Address(lng: number, lat: number, callback: (result: any, status: any) => void): void
+    }
+    namespace Status {
+      const OK: string
+    }
+  }
+}
 
 export default function Home() {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -25,6 +76,8 @@ export default function Home() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [showModal, setShowModal] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [showLeftButton, setShowLeftButton] = useState(false)
+  const [showRightButton, setShowRightButton] = useState(true)
   const [isList, setList] = useState(false)
   const router = useRouter()
   const [markers, setMarkers] = useState<any[]>([])
@@ -34,6 +87,7 @@ export default function Home() {
   const clickedMarkerRef = useRef<any>(null)
   const [currentLocationMarker, setCurrentLocationMarker] = useState<any>(null)
   const { places, setPlaces, isLoading, setIsLoading, keywordList, setKeywordList } = usePlaces()
+  const { userLocation, refreshLocation, setManualLocation } = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [autoCompleteResults, setAutoCompleteResults] = useState<{id: number, title: string}[]>([])
@@ -41,19 +95,26 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
+  const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
+  const [isKeywordLoading, setIsKeywordLoading] = useState(false)
+  const { fetchKeywordRecommendCafes } = useCafeApi()
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
     try {
-      // 현재 위치 가져오기
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject)
-      })
+      // LocationContext를 통해 현재 위치 가져오기
+      await refreshLocation()
+      
+      if (!userLocation) {
+        throw new Error('위치 정보를 가져올 수 없습니다.')
+      }
 
       const response = await axiosInstance.get(`/cafes/self-recommend`, {
         params: {
-          lat: position.coords.latitude,
-          lon: position.coords.longitude
+          lat: userLocation.lat,
+          lon: userLocation.lon
         }
       })
       console.log(response.data.data)
@@ -237,11 +298,9 @@ export default function Home() {
     setMap(newMap)
 
     // 지도 클릭 이벤트 추가
-    window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: any) {
+    window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: kakao.maps.event.MouseEvent) {
       const latlng = mouseEvent.latLng
       
-      
-
       // 이전 클릭 마커 제거
       if (clickedMarkerRef.current) {
         clickedMarkerRef.current.setMap(null)
@@ -262,6 +321,12 @@ export default function Home() {
 
       marker.setMap(newMap)
       clickedMarkerRef.current = marker
+
+      // 클릭한 위치를 현재 위치로 설정
+      setManualLocation({
+        lat: latlng.getLat(),
+        lon: latlng.getLng()
+      })
 
       // 클릭한 위치의 주소 가져오기
       const geocoder = new window.kakao.maps.services.Geocoder()
@@ -298,6 +363,13 @@ export default function Home() {
 
       // 마커 클릭 이벤트
       window.kakao.maps.event.addListener(marker, 'click', function() {
+        // 이전에 표시된 모든 오버레이 제거
+        newMarkers.forEach(m => {
+          if (m.overlay) {
+            m.overlay.setMap(null)
+          }
+        })
+
         // 마커 위치로 지도 중심 이동 (애니메이션 효과 추가)
         newMap.setCenter(position)
         // 줌 레벨 조정
@@ -307,10 +379,8 @@ export default function Home() {
         setSelectedPlace(place)
       })
 
-      // 다른 마커 클릭 시 현재 오버레이 숨기기
-      window.kakao.maps.event.addListener(newMap, 'click', function() {
-        overlay.setMap(null)
-      })
+      // 마커에 오버레이 참조 저장
+      marker.overlay = overlay
 
       return marker
     })
@@ -379,6 +449,24 @@ export default function Home() {
         const position = new window.kakao.maps.LatLng(newPlace.lat, newPlace.lon)
         map.panTo(position)
         map.setLevel(3)
+
+        // 이전에 표시된 모든 오버레이 제거
+        markers.forEach(marker => {
+          if (marker.overlay) {
+            marker.overlay.setMap(null)
+          }
+        })
+
+        // 새로운 장소의 마커 찾기
+        const newMarker = markers.find(m => {
+          const markerPos = m.getPosition()
+          return markerPos.getLat() === newPlace.lat && markerPos.getLng() === newPlace.lon
+        })
+
+        // 새로운 마커의 오버레이 표시
+        if (newMarker && newMarker.overlay) {
+          newMarker.overlay.setMap(map)
+        }
       }
     }
   }
@@ -404,58 +492,44 @@ export default function Home() {
   }
 
   const moveToCurrentLocation = () => {
-    if (!map) return
+    if (!map || !userLocation) return
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude
-          const lng = position.coords.longitude
-          const locPosition = new window.kakao.maps.LatLng(lat, lng)
-          
-          map.setCenter(locPosition)
-          map.setLevel(3)
+    const locPosition = new window.kakao.maps.LatLng(userLocation.lat, userLocation.lon)
+    
+    map.setCenter(locPosition)
+    map.setLevel(3)
 
-          // 이전 현재 위치 마커 제거
-          if (currentLocationMarker) {
-            currentLocationMarker.setMap(null)
-          }
-
-          // 현재 위치 마커 생성
-          const markerImage = new window.kakao.maps.MarkerImage(
-            "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-            new window.kakao.maps.Size(24, 35)
-          )
-
-          const marker = new window.kakao.maps.Marker({
-            position: locPosition,
-            image: markerImage,
-            zIndex: 3
-          })
-
-          marker.setMap(map)
-          setCurrentLocationMarker(marker)
-
-          // 좌표로 주소 변환
-          const geocoder = new window.kakao.maps.services.Geocoder()
-          geocoder.coord2Address(lng, lat, (result: any, status: any) => {
-            if (status === window.kakao.maps.services.Status.OK) {
-              const roadAddress = result[0].road_address?.address_name
-              const address = result[0].address.address_name
-              // 도로명주소에서 시/도 부분 제거
-              const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
-              setCurrentAddress(cleanAddress)
-            }
-          })
-        },
-        (error) => {
-          console.error(error)
-          alert('위치 정보를 가져오는데 실패했습니다.')
-        }
-      )
-    } else {
-      alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
+    // 이전 현재 위치 마커 제거
+    if (currentLocationMarker) {
+      currentLocationMarker.setMap(null)
     }
+
+    // 현재 위치 마커 생성
+    const markerImage = new window.kakao.maps.MarkerImage(
+      "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
+      new window.kakao.maps.Size(24, 35)
+    )
+
+    const marker = new window.kakao.maps.Marker({
+      position: locPosition,
+      image: markerImage,
+      zIndex: 3
+    })
+
+    marker.setMap(map)
+    setCurrentLocationMarker(marker)
+
+    // 좌표로 주소 변환
+    const geocoder = new window.kakao.maps.services.Geocoder()
+    geocoder.coord2Address(userLocation.lon, userLocation.lat, (result: any, status: any) => {
+      if (status === window.kakao.maps.services.Status.OK) {
+        const roadAddress = result[0].road_address?.address_name
+        const address = result[0].address.address_name
+        // 도로명주소에서 시/도 부분 제거
+        const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+        setCurrentAddress(cleanAddress)
+      }
+    })
   }
 
   // 스크롤 감지
@@ -513,10 +587,10 @@ export default function Home() {
 
       if (place.isBookmarked) {
         // 북마크 삭제
-        await axiosInstance.delete(`/api/v1/bookmarks/${placeId}`)
+        await axiosInstance.delete(`/bookmarks/${placeId}`)
       } else {
         // 북마크 추가
-        await axiosInstance.post(`/api/v1/bookmarks/${placeId}`)
+        await axiosInstance.post(`/bookmarks/${placeId}`)
       }
 
       // places 배열 업데이트
@@ -540,7 +614,38 @@ export default function Home() {
   // places 배열이 변경될 때마다 실행
   useEffect(() => {
     console.log("places updated:", places)
+    if (places.length > 0) {
+      setSelectedPlace(places[0]) // places가 변경될 때마다 첫 번째 장소 선택
+    }
   }, [places])
+
+  const handleKeywordClick = async (keyword: string) => {
+    setIsKeywordLoading(true)
+    try {
+      // 이미 선택된 키워드면 제거, 아니면 추가
+      const newKeywords = selectedKeywords.includes(keyword)
+        ? selectedKeywords.filter(k => k !== keyword)
+        : [...selectedKeywords, keyword]
+      
+      setSelectedKeywords(newKeywords)
+
+      if (newKeywords.length > 0) {
+        const data = await fetchKeywordRecommendCafes(newKeywords)
+        // 검색 결과가 있을 때만 상태 갱신
+        if (data.content.length > 0) {
+          setPlaces(data.content)
+          setSelectedPlace(data.content[0]) // 첫 번째 장소 선택
+        }
+      } else {
+        // 키워드가 모두 해제되면 인기 카페 목록으로 복귀
+        await fetchPopularPlaces()
+      }
+    } catch (error) {
+      console.error('Failed to fetch keyword places:', error)
+    } finally {
+      setIsKeywordLoading(false)
+    }
+  }
 
   return (
     <div className="relative w-full h-full">
