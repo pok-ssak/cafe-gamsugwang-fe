@@ -59,14 +59,14 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-full bg-gray-50">
       {/* 헤더 섹션 */}      
       <div className="bg-white border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">
         <h1 className="text-xl font-bold">프로필</h1>
         </div>
       </div>
-
+      
       {/* 프로필 카드 */}
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">

@@ -545,7 +545,7 @@ export default function Home() {
   }, [places])
 
   return (
-    <div className="relative w-full h-screen">
+    <div className="relative w-full h-full">
       {/* 검색 오버레이 */}
       {isSearchFocused && (
         <div className="fixed inset-0 bg-white z-40" />
@@ -767,7 +767,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div ref={mapRef} className="w-full h-[100vh] absolute inset-0" />
+        <div ref={mapRef} className="w-[80%] h-[100%] absolute inset-0" />
       )}
 
       {/* 리스트 뷰 오버레이 */}

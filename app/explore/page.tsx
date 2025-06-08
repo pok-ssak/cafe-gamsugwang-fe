@@ -176,7 +176,7 @@ function ExploreContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-full bg-white">
       {/* 헤더 */}
       <div className="bg-white border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">

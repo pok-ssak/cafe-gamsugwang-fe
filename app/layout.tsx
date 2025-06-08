@@ -27,7 +27,7 @@ export default function RootLayout({
           <PlacesProvider>
             <LocationProvider>
               <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-                <main className="flex-1 relative overflow-y-auto pb-16 h-[calc(100vh-4rem)]">{children}</main>
+                <main className="relative overflow-y-auto h-[calc(100vh-4rem)]">{children}</main>
                 <BottomNavigation />
               </ThemeProvider>
             </LocationProvider>

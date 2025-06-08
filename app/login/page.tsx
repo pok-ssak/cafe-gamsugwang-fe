@@ -81,7 +81,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-full bg-white flex flex-col">
       {/* 상단 로고 */}
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md space-y-8">
