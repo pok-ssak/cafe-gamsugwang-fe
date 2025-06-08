@@ -133,7 +133,7 @@ export default function Home() {
 
     try {
       setIsLoadingAutoComplete(true)
-      const response = await axiosInstance.get(`/cafes/auto-complete`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/auto-complete`, {
         params: { keyword }
       })
       console.log(response.data);  

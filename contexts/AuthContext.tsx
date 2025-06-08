@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // await axiosInstance.post('/auth/logout')
+      // await axiosInstance.post('/api/v1/auth/logout')
       localStorage.removeItem('accessToken')
       setAccessToken(null)
       setIsAuthenticated(false)

@@ -56,7 +56,7 @@ export default function Feed() {
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/feeds/read-all`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/api/v1/feeds/read-all`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -73,7 +73,7 @@ export default function Feed() {
 
   const markAsRead = async (feedId: number) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/feeds/${feedId}/read`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_HOST}/api/v1/feeds/${feedId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -93,7 +93,7 @@ export default function Feed() {
 
   useEffect(() => {
     if (!authLoading) {
-      const url = `${process.env.NEXT_PUBLIC_API_HOST}/feeds?page=${page}&size=${PAGE_SIZE}`
+      const url = `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/feeds?page=${page}&size=${PAGE_SIZE}`
       const token = localStorage.getItem('accessToken')
       console.log("🔍 Fetching:", url)
       console.log("🔐 Token:", token)

@@ -91,7 +91,7 @@ export default function ProfileEdit() {
       }
 
       await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_HOST}/users/profile/image`,
+        `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/users/profile/image`,
          formData, 
          {
           headers: {
@@ -123,7 +123,7 @@ export default function ProfileEdit() {
       const currentKeywords = keywords.map(k => k.word)
 
       await axios.put(
-        `${process.env.NEXT_PUBLIC_API_HOST}/users/profile`,
+        `${process.env.NEXT_PUBLIC_API_HOST}/api/v1/users/profile`,
         { 
           nickname: nickname,
           keywords: currentKeywords
@@ -162,7 +162,7 @@ export default function ProfileEdit() {
   // 관련 키워드 가져오기
   const fetchRelatedKeywords = async (keyword: string) => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/keywords`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/api/v1/keywords`, {
         params: { query: keyword },
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`

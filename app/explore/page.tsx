@@ -122,7 +122,7 @@ function ExploreContent() {
       if (newKeywords.length > 0) {
         console.log(newKeywords)
         const data = await fetchKeywordRecommendCafes(newKeywords)
-        setKeywordPlaces(data)
+        setKeywordPlaces(data.content)
       } else {
         setKeywordPlaces([])
       }
