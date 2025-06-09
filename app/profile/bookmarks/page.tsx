@@ -134,6 +134,7 @@ export default function Bookmarks() {
                             <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
                           </div>
                         )}
+                        <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
                       </div>
                       <button 
                         className="p-2 hover:bg-gray-100 rounded-full transition-colors"

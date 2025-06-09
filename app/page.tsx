@@ -98,6 +98,11 @@ export default function Home() {
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [isKeywordLoading, setIsKeywordLoading] = useState(false)
+  const [searchResult, setSearchResult] = useState<{
+    totalElements: number;
+    totalPages: number;
+    number: number;
+  } | null>(null)
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -158,24 +163,36 @@ export default function Home() {
   // 카페 목록 가져오기
   const fetchPlaces = async (option?: string, keyword?: string) => {
     try {
-      const response = await axiosInstance.get(`/api/v1/cafes/search`, {
+      const response = await axiosInstance.get(`/api/v2/cafes/search`, {
         params: {
           query: keyword
         }
       })
-      console.log(response.data);
-      setPlaces(response.data.data)
+      console.log(response.data.data);
+      setPlaces(response.data.data.content)
+      setSearchResult({
+        totalElements: response.data.data.totalElements,
+        totalPages: response.data.data.totalPages,
+        number: response.data.data.number
+      })
       setIsSearchFocused(false)
 
+      // 검색 결과가 있으면 첫 번째 카드 선택
+      if (response.data.data.content.length > 0) {
+        setSelectedPlace(response.data.data.content[0])
+      } else {
+        setSelectedPlace(null)
+      }
+
       // 키워드 리스트 업데이트
-      const keywords = response.data.data.flatMap((place: Place) => 
+      const keywords = response.data.data.content.flatMap((place: Place) => 
         (place.keywordList || []).map(k => k.keyword)
       )
       setKeywordList(Array.from(new Set(keywords)))
 
       // 검색 결과가 있고 지도가 초기화되어 있다면, 첫 번째 장소로 지도 중심 이동
-      if (response.data.data.length > 0 && map) {
-        const firstPlace = response.data.data[0]
+      if (response.data.data.content.length > 0 && map) {
+        const firstPlace = response.data.data.content[0]
         const position = new window.kakao.maps.LatLng(firstPlace.lat, firstPlace.lon)
         map.setCenter(position)
         map.setLevel(3)
@@ -595,10 +612,10 @@ export default function Home() {
 
       if (place.isBookmarked) {
         // 북마크 삭제
-        await axiosInstance.delete(`/bookmarks/${placeId}`)
+        await axiosInstance.delete(`/api/v1//bookmarks/${placeId}`)
       } else {
         // 북마크 추가
-        await axiosInstance.post(`/bookmarks/${placeId}`)
+        await axiosInstance.post(`/api/v1/bookmarks/${placeId}`)
       }
 
       // places 배열 업데이트
@@ -1110,6 +1127,64 @@ export default function Home() {
         >
           <ChevronUp className="w-5 h-5" />
         </button>
+      )}
+
+      {/* 검색 결과 */}
+      {places.length > 0 && (
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-gray-900">
+              검색 결과 {searchResult?.totalElements || 0}개
+            </h2>
+            <span className="text-sm text-gray-500">
+              {searchResult ? `${searchResult.number + 1} / ${searchResult.totalPages} 페이지` : ''}
+            </span>
+          </div>
+          <div className="flex overflow-x-auto gap-4 pb-4">
+            {places.map((place) => (
+              <div
+                key={place.id}
+                className="flex-none w-64 bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedPlace(place)}
+              >
+                <div className="flex gap-4">
+                  <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
+                    <img 
+                      src={place.imageUrl || FALLBACK_IMAGE_URL} 
+                      alt={place.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = FALLBACK_IMAGE_URL;
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h2 className="text-lg font-bold truncate">{place.title}</h2>
+                        <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
+                          <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
+                        </div>
+                        <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
+                      </div>
+                      <button 
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                        onClick={(e) => handleCardBookmarkToggle(place.id, e)}
+                      >
+                        <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <MapPin className="w-4 h-4" />
+                      <span className="truncate">{place.address}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
     </div>

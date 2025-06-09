@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp, Pencil } from "lucide-react"
+import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp, Pencil, Globe } from "lucide-react"
 import Image from "next/image"
 import { Place, MenuItem } from "@/types/place"
 import { Review } from "@/types/review"
@@ -45,6 +45,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
   const [isExpanded, setIsExpanded] = useState(false)
   const [showExpandButton, setShowExpandButton] = useState(false)
   const keywordsRef = useRef<HTMLDivElement>(null)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   // 카페 상세 정보 가져오기
   const fetchCafeDetails = async () => {
@@ -414,11 +415,12 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
                 src={place.imageUrl || FALLBACK_IMAGE_URL}
                 alt={place.title}
                 fill
-                className="object-cover rounded-t-2xl"
+                className="object-cover rounded-t-2xl cursor-pointer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = FALLBACK_IMAGE_URL;
                 }}
+                onClick={() => setSelectedImage(place.imageUrl || FALLBACK_IMAGE_URL)}
               />
             </div>
           </div>
@@ -674,6 +676,23 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
           onClose={() => setShowReviewModal(false)}
           onReviewSubmit={fetchReviews}
         />
+      )}
+
+      {/* 이미지 확대 모달 */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center">
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={selectedImage}
+            alt="확대된 이미지"
+            className="max-w-[90%] max-h-[90vh] object-contain"
+          />
+        </div>
       )}
     </div>
   )

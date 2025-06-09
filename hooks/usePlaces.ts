@@ -37,7 +37,7 @@ export function usePlaces() {
     if (!userLocation) return
 
     if (page === 1) {
-      setIsLoading(true)
+    setIsLoading(true)
     } else {
       setIsLoadingMoreNearby(true)
     }
@@ -49,7 +49,7 @@ export function usePlaces() {
       console.log('Nearby places fetched:', data)
       
       if (page === 1) {
-        setNearbyPlaces(data.content)
+      setNearbyPlaces(data.content)
       } else {
         setNearbyPlaces(prev => [...prev, ...data.content])
       }
@@ -61,7 +61,7 @@ export function usePlaces() {
       setError('근처 카페를 불러오는데 실패했습니다.')
     } finally {
       if (page === 1) {
-        setIsLoading(false)
+      setIsLoading(false)
       } else {
         setIsLoadingMoreNearby(false)
       }

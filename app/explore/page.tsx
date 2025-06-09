@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, Star, Heart, MapPin } from "lucide-react"
+import { ChevronRight, Star, Heart, MapPin, X } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Place } from "@/types/place"
@@ -10,6 +10,7 @@ import { usePlaces } from "@/hooks/usePlaces"
 import { useCafeApi } from "@/hooks/useCafeApi"
 import { LocationProvider, useLocation } from '@/contexts/LocationContext'
 import { PlaceCard } from "@/components/place-card"
+import axiosInstance from "@/lib/axios"
 
 const CAFE_KEYWORDS = [
   { id: 1, name: "디저트 카페", color: "bg-blue-100" },
@@ -28,6 +29,14 @@ const RANKING_BADGES = {
   2: '🥈',
   3: '🥉',
 }
+
+const POPULAR_KEYWORDS = [
+  { id: 1, name: "디저트", count: 156 },
+  { id: 2, name: "브런치", count: 142 },
+  { id: 3, name: "북카페", count: 128 },
+  { id: 4, name: "테마", count: 115 },
+  { id: 5, name: "공부", count: 98 },
+]
 
 export default function Explore() {
   return <ExploreContent />
@@ -54,6 +63,9 @@ function ExploreContent() {
   const [popularPage, setPopularPage] = useState(1)
   const [isLoadingMorePopular, setIsLoadingMorePopular] = useState(false)
   const [currentAddress, setCurrentAddress] = useState<string>("위치 정보를 가져오는 중...")
+  const [popularKeywords, setPopularKeywords] = useState<string[]>([])
+  const [isLoadingKeywords, setIsLoadingKeywords] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   
   const {
     places: placesFromPlacesHook,
@@ -292,6 +304,24 @@ function ExploreContent() {
     }
   }
 
+  // 인기 키워드 가져오기
+  const fetchPopularKeywords = async () => {
+    try {
+      setIsLoadingKeywords(true)
+      const response = await axiosInstance.get('/api/v2/cafes/top-searches')
+      setPopularKeywords(response.data.data)
+    } catch (error) {
+      console.error('Failed to fetch popular keywords:', error)
+    } finally {
+      setIsLoadingKeywords(false)
+    }
+  }
+
+  // 컴포넌트 마운트 시 인기 키워드 가져오기
+  useEffect(() => {
+    fetchPopularKeywords()
+  }, [])
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -307,13 +337,13 @@ function ExploreContent() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           <h1 className="text-xl font-bold">탐색</h1>
         </div>
-      </div>
+        </div>
 
-      {/* 탭 네비게이션 */}
+        {/* 탭 네비게이션 */}
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="flex space-x-8">
-            <button
+          <div className="max-w-2xl mx-auto px-4">
+            <div className="flex space-x-8">
+              <button
               onClick={() => handleTabChange('ranking')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'ranking'
@@ -325,34 +355,34 @@ function ExploreContent() {
             </button>
             <button
               onClick={() => handleTabChange('recommended')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'recommended'
-                  ? 'border-orange-500 text-orange-500'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              맞춤 추천
-            </button>
-            <button
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'recommended'
+                    ? 'border-orange-500 text-orange-500'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                맞춤 추천
+              </button>
+              <button
               onClick={() => handleTabChange('keywords')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'keywords'
-                  ? 'border-orange-500 text-orange-500'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              테마
-            </button>
-            <button
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'keywords'
+                    ? 'border-orange-500 text-orange-500'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                테마
+              </button>
+              <button
               onClick={() => handleTabChange('nearby')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'nearby'
-                  ? 'border-orange-500 text-orange-500'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              근처 카페
-            </button>
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'nearby'
+                    ? 'border-orange-500 text-orange-500'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                근처 카페
+              </button>
           </div>
         </div>
       </div>
@@ -361,53 +391,80 @@ function ExploreContent() {
       <div className="max-w-2xl mx-auto px-4 py-4">
         {/* 랭킹 탭 */}
         {activeTab === 'ranking' && (
-          <div className="space-y-6">
-            {/* 상위 랭킹 섹션 */}
-            {popularPlaces.length > 0 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-bold text-gray-900">이번 주 인기 카페</h2>
-                <div className="grid grid-cols-1 gap-4">
-                  {popularPlaces.slice(0, 3).map((place, index) => (
-                    <PlaceCard
-                      key={place.id}
-                      place={place}
-                      onClick={() => setSelectedPlace(place)}
-                      rank={index + 1}
-                      variant="ranking"
-                    />
-                  ))}
+          <div className="space-y-8">
+            {/* 키워드 인기 순위 */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">키워드 인기 순위</h2>
+                <span className="text-sm text-gray-500">2025.06.10</span>
+              </div>
+              <div className="bg-white rounded-2xl shadow-lg p-4">
+                <div className="space-y-3">
+                  {isLoadingKeywords ? (
+                    <div className="text-center py-4 text-gray-500">로딩 중...</div>
+                  ) : popularKeywords.length > 0 ? (
+                    popularKeywords.map((keyword, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-600">
+                            {index + 1}
+                          </div>
+                          <span className="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-sm font-medium">
+                            {keyword}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-orange-500 font-medium">{156 - (index * 10)}</span>
+                          <span className="text-gray-400 text-sm">회</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">인기 키워드가 없습니다</div>
+                  )}
                 </div>
               </div>
-            )}
-
-            {/* 전체 랭킹 목록 */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-gray-900">전체 랭킹</h2>
-              {isPopularLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-                </div>
-              ) : popularPlaces.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  추천 카페가 없어요!
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  {popularPlaces.map((place, index) => (
-                    <PlaceCard
+            </div>
+            {/* 전체 랭킹 */}
+            <div>
+              <h2 className="text-xl font-bold mb-4">전체 랭킹</h2>
+              <div className="space-y-4">
+                {isPopularLoading ? (
+                  <div className="text-center py-8 text-gray-500">로딩 중...</div>
+                ) : popularPlaces.length > 0 ? (
+                  popularPlaces.map((place, index) => (
+                    <div
                       key={place.id}
-                      place={place}
-                      onClick={() => setSelectedPlace(place)}
-                      rank={index + 1}
-                    />
-                  ))}
-                  <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
-                    {isLoadingMorePopular && (
-                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-                    )}
-                  </div>
-                </div>
-              )}
+                      className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
+                      onClick={() => {
+                        setSelectedPlace(place)
+                        setShowModal(true)
+                      }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-2xl">
+                          {RANKING_BADGES[index + 1 as keyof typeof RANKING_BADGES] || `${index + 1}`}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold truncate">{place.title}</h3>
+                            <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600 text-sm">
+                            <MapPin className="w-4 h-4" />
+                            <span className="truncate">{place.address}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">랭킹 정보가 없습니다</div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -539,7 +596,25 @@ function ExploreContent() {
         <PlaceDetailModal
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
+          onImageClick={(imageUrl) => setSelectedImage(imageUrl)}
         />
+      )}
+
+      {/* 이미지 확대 모달 */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={selectedImage}
+            alt="확대된 이미지"
+            className="max-w-[90%] max-h-[90vh] object-contain"
+          />
+        </div>
       )}
     </div>
   )
