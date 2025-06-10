@@ -7,6 +7,9 @@ import BottomNavigation from "@/components/bottom-navigation"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { PlacesProvider } from "@/contexts/PlacesContext"
 import { LocationProvider } from "@/contexts/LocationContext"
+import { KeywordRecommendProvider } from '@/contexts/KeywordRecommendContext'
+import { LocationRecommendProvider } from '@/contexts/LocationRecommendContext'
+import { SelfRecommendProvider } from '@/contexts/SelfRecommendContext'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,14 +27,20 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body className={`${inter.className} flex flex-col min-h-screen h-screen`}>
         <AuthProvider>
-          <PlacesProvider>
-            <LocationProvider>
-              <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-                <main className="flex-1 relative overflow-y-auto pb-16 h-[calc(100vh-4rem)]">{children}</main>
-                <BottomNavigation />
-              </ThemeProvider>
-            </LocationProvider>
-          </PlacesProvider>
+          <LocationProvider>
+            <PlacesProvider>
+              <LocationRecommendProvider>
+                <KeywordRecommendProvider>
+                  <SelfRecommendProvider>
+                    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+                      <main className="relative overflow-y-auto h-[calc(100vh-4rem)]">{children}</main>
+                      <BottomNavigation />
+                    </ThemeProvider>
+                  </SelfRecommendProvider>
+                </KeywordRecommendProvider>
+              </LocationRecommendProvider>
+            </PlacesProvider>
+          </LocationProvider>
         </AuthProvider>
       </body>
     </html>

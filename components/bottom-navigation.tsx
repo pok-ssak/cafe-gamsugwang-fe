@@ -16,11 +16,18 @@ export default function BottomNavigation() {
     { href: "/feed", icon: Newspaper, label: "피드" },
   ]
 
+  const checkIsActive = (path: string) => {
+    if (path === '/profile') {
+      return pathname.startsWith('/profile')
+    }
+    return pathname === path
+  }
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
-      <nav className="flex justify-around items-center h-16">
+      <nav className="max-w-2xl mx-auto flex justify-around items-center h-16">
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = checkIsActive(item.href)
           return (
             <Link
               key={item.href}

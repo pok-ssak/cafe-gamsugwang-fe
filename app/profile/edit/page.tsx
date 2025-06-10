@@ -31,7 +31,7 @@ export default function ProfileEdit() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/users/profile`, {
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_HOST}/api/v1/users/profile`, {
           withCredentials: true,
           headers: {
             Authorization: `Bearer ${localStorage.getItem('accessToken')}`
@@ -218,9 +218,9 @@ export default function ProfileEdit() {
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center">
           <button 
             onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <h1 className="text-xl font-bold ml-4">프로필 수정</h1>
         </div>

@@ -14,6 +14,7 @@ interface LocationContextType {
   isTestMode: boolean
   setIsTestMode: (isTestMode: boolean) => void
   refreshLocation: () => void
+  setManualLocation: (location: Location) => void
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined)
@@ -28,13 +29,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
   const [error, setError] = useState<string | null>(null)
   const [isTestMode, setIsTestMode] = useState(false)
 
-  // 제주도 랜덤 위치 생성 함수
   const generateRandomJejuLocation = () => {
-    // 제주도 대략적인 경계
-    const minLat = 33.1  // 제주도 남쪽 끝
-    const maxLat = 33.6  // 제주도 북쪽 끝
-    const minLon = 126.1 // 제주도 서쪽 끝
-    const maxLon = 126.9 // 제주도 동쪽 끝
+    const minLat = 33.1
+    const maxLat = 33.6
+    const minLon = 126.1
+    const maxLon = 126.9
 
     const lat = minLat + Math.random() * (maxLat - minLat)
     const lon = minLon + Math.random() * (maxLon - minLon)
@@ -42,7 +41,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
     return { lat, lon }
   }
 
-  // 현재 위치 가져오기
   const getUserLocation = () => {
     setIsLoading(true)
     setError(null)
@@ -63,8 +61,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
           })
           setIsLoading(false)
         },
-        (error) => {
-          console.error('Error getting location:', error)
+        () => {
           setError('위치 정보를 가져오는데 실패했습니다.')
           setIsLoading(false)
         }
@@ -75,12 +72,14 @@ export function LocationProvider({ children }: LocationProviderProps) {
     }
   }
 
-  // 초기 위치 설정
+  const setManualLocation = (location: Location) => {
+    setUserLocation(location)
+  }
+
   useEffect(() => {
     getUserLocation()
   }, [])
 
-  // 테스트 모드 변경 시 위치 새로고침
   useEffect(() => {
     getUserLocation()
   }, [isTestMode])
@@ -93,7 +92,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
         error,
         isTestMode,
         setIsTestMode,
-        refreshLocation: getUserLocation
+        refreshLocation: getUserLocation,
+        setManualLocation
       }}
     >
       {children}

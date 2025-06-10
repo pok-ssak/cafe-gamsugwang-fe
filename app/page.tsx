@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
-import { Search, Star, ChevronLeft, ChevronRight, MapPin, Heart, Compass, List, Navigation, ChevronUp, X } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { useEffect, useRef, useState } from "react"
+import { Star, ChevronLeft, ChevronRight, MapPin, Heart, Compass, List, Navigation, ChevronUp, X } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
 import { Place } from "@/types/place"
@@ -10,6 +9,10 @@ import { PlaceDetailModal } from "@/components/place-detail-modal"
 import axiosInstance from "@/lib/axios"
 import { FALLBACK_IMAGE_URL } from "./constants"
 import { usePlaces } from "@/contexts/PlacesContext"
+import { useLocation } from "@/contexts/LocationContext"
+import { Map } from "@/components/map"
+import { SearchBar } from "@/components/search-bar"
+import { PlaceCard } from "@/components/place-card"
 
 declare global {
   interface Window {
@@ -17,47 +20,56 @@ declare global {
   }
 }
 
-
 export default function Home() {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const [map, setMap] = useState<any>(null)
   const isMobile = useMobile()
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [showModal, setShowModal] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftButton, setShowLeftButton] = useState(false)
   const [showRightButton, setShowRightButton] = useState(true)
-  const [isList, setList] = useState(false)
   const router = useRouter()
-  const [markers, setMarkers] = useState<any[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const listViewRef = useRef<HTMLDivElement>(null)
   const [currentAddress, setCurrentAddress] = useState("제주특별자치도 제주시 중앙로 1")
-  const clickedMarkerRef = useRef<any>(null)
-  const [currentLocationMarker, setCurrentLocationMarker] = useState<any>(null)
   const { places, setPlaces, isLoading, setIsLoading, keywordList, setKeywordList } = usePlaces()
-  const [searchQuery, setSearchQuery] = useState("")
+  const { userLocation, refreshLocation, setManualLocation } = useLocation()
   const [isSearchFocused, setIsSearchFocused] = useState(false)
-  const [autoCompleteResults, setAutoCompleteResults] = useState<{id: number, title: string}[]>([])
-  const [isLoadingAutoComplete, setIsLoadingAutoComplete] = useState(false)
-  const [selectedIndex, setSelectedIndex] = useState(-1)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [expandedKeywords, setExpandedKeywords] = useState<{ [key: number]: boolean }>({})
   const [isBookmarked, setIsBookmarked] = useState<{ [key: number]: boolean }>({})
   const [isBookmarkLoading, setIsBookmarkLoading] = useState<{ [key: number]: boolean }>({})
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
+  const [isKeywordLoading, setIsKeywordLoading] = useState(false)
+  const [searchResult, setSearchResult] = useState<{
+    totalElements: number;
+    totalPages: number;
+    number: number;
+  } | null>(null)
+  const [isKakaoLoaded, setIsKakaoLoaded] = useState(false)
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined)
+  const [isResultsMinimized, setIsResultsMinimized] = useState(false)
+
+  // 마우스 휠 이벤트 핸들러
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const container = e.currentTarget
+    const scrollAmount = e.deltaY
+    container.scrollLeft += scrollAmount
+    e.preventDefault()
+  }
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
     try {
-      // 현재 위치 가져오기
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject)
-      })
+      // LocationContext를 통해 현재 위치 가져오기
+      await refreshLocation()
+      
+      if (!userLocation) {
+        throw new Error('위치 정보를 가져올 수 없습니다.')
+      }
 
       const response = await axiosInstance.get(`/cafes/self-recommend`, {
         params: {
-          lat: position.coords.latitude,
-          lon: position.coords.longitude
+          lat: userLocation.lat,
+          lon: userLocation.lon
         }
       })
       console.log(response.data.data)
@@ -91,30 +103,30 @@ export default function Home() {
   }
 
   // 카페 목록 가져오기
-  const fetchPlaces = async (option?: string, keyword?: string) => {
+  const fetchPlaces = async (keyword: string) => {
     try {
-      const response = await axiosInstance.get(`/api/v1/cafes/search`, {
+      const response = await axiosInstance.get(`/api/v2/cafes/search`, {
         params: {
           query: keyword
         }
       })
-      console.log(response.data);
-      setPlaces(response.data.data)
+      console.log(response.data.data);
+      setPlaces(response.data.data.content)
+      setSearchResult({
+        totalElements: response.data.data.totalElements,
+        totalPages: response.data.data.totalPages,
+        number: response.data.data.number
+      })
       setIsSearchFocused(false)
 
+      // 검색 결과가 있더라도 자동으로 첫 번째 카드 선택하지 않음
+        setSelectedPlace(null)
+
       // 키워드 리스트 업데이트
-      const keywords = response.data.data.flatMap((place: Place) => 
+      const keywords = response.data.data.content.flatMap((place: Place) => 
         (place.keywordList || []).map(k => k.keyword)
       )
       setKeywordList(Array.from(new Set(keywords)))
-
-      // 검색 결과가 있고 지도가 초기화되어 있다면, 첫 번째 장소로 지도 중심 이동
-      if (response.data.data.length > 0 && map) {
-        const firstPlace = response.data.data[0]
-        const position = new window.kakao.maps.LatLng(firstPlace.lat, firstPlace.lon)
-        map.setCenter(position)
-        map.setLevel(3)
-      }
     } catch (error) {
       console.error('Failed to fetch places:', error)
     } finally {
@@ -122,892 +134,180 @@ export default function Home() {
     }
   }
 
-  // 자동완성 검색
-  const fetchAutoComplete = async (keyword: string) => {
-    if (!keyword.trim()) {
-      setAutoCompleteResults([])
-      return
-    }
-
-    try {
-      setIsLoadingAutoComplete(true)
-      const response = await axiosInstance.get(`/api/v1/cafes/auto-complete`, {
-        params: { keyword }
-      })
-      console.log(response.data);  
-      setAutoCompleteResults(response.data)
-    } catch (error) {
-      console.error('Failed to fetch auto-complete:', error)
-      setAutoCompleteResults([])
-    } finally {
-      setIsLoadingAutoComplete(false)
-    }
-  }
-
-  // 검색어 변경 핸들러
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchQuery(value)
-
-    // 이전 타이머가 있다면 제거
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    // 1초 후에 자동완성 검색 실행
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchAutoComplete(value)
-    }, 1000)
-  }
-
-  // 키보드 네비게이션 핸들러
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isSearchFocused || autoCompleteResults.length === 0) return
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedIndex(prev => 
-          prev < autoCompleteResults.length - 1 ? prev + 1 : prev
-        )
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedIndex(prev => prev > 0 ? prev - 1 : prev)
-        break
-      case 'Enter':
-        e.preventDefault()
-        if (selectedIndex >= 0) {
-          handleAutoCompleteSelect(autoCompleteResults[selectedIndex].title)
-        } else {
-          handleSearch(e)
-        }
-        break
-      case 'Escape':
-        e.preventDefault()
-        setIsSearchFocused(false)
-        setAutoCompleteResults([])
-        setSelectedIndex(-1)
-        break
-    }
-  }
-
-  // 검색창 포커스 해제 시 선택 인덱스 초기화
-  const handleSearchBlur = () => {
-    setTimeout(() => {
-      setSelectedIndex(-1)
-    }, 200)
-  }
-
-  // 자동완성 항목 선택
-  const handleAutoCompleteSelect = (keyword: string) => {
-    setSearchQuery(keyword)
-    setAutoCompleteResults([])
-    setSelectedIndex(-1)
-    handleSearch(new Event('submit') as any)
-  }
-
-  // 컴포넌트 언마운트 시 타이머 정리
+  // 카카오맵 스크립트 로드
   useEffect(() => {
+    const script = document.createElement('script')
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`
+    script.async = true
+
+    script.onload = () => {
+      window.kakao.maps.load(() => {
+        setIsKakaoLoaded(true)
+      })
+  }
+
+    document.head.appendChild(script)
+
     return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
+      document.head.removeChild(script)
     }
   }, [])
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    fetchPlaces("keyword",searchQuery)
-  }
-
-  // 카카오맵 초기화 및 마커 생성
-  const initializeMap = useCallback(() => {
-    if (!mapRef.current) return
-
-    // 기본 좌표 (제주시청)
-    const defaultPosition = new window.kakao.maps.LatLng(33.4996213, 126.5311884)
-    
-    // places 배열의 첫 번째 요소가 있으면 그 좌표 사용, 없으면 기본 좌표 사용
-    const centerPosition = places.length > 0 
-      ? new window.kakao.maps.LatLng(places[0].lat, places[0].lon)
-      : defaultPosition
-
-    const options = {
-      center: centerPosition,
-      level: 6,
-    }
-    const newMap = new window.kakao.maps.Map(mapRef.current, options)
-    setMap(newMap)
-
-    // 지도 클릭 이벤트 추가
-    window.kakao.maps.event.addListener(newMap, 'click', function(mouseEvent: any) {
-      const latlng = mouseEvent.latLng
-      
-      // 이전 클릭 마커 제거
-      if (clickedMarkerRef.current) {
-        clickedMarkerRef.current.setMap(null)
-        clickedMarkerRef.current = null
-      }
-
-      // 새로운 마커 생성 (클릭 시에는 별 모양 마커 유지)
-      const markerImage = new window.kakao.maps.MarkerImage(
-        "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-        new window.kakao.maps.Size(24, 35)
-      )
-
-      const marker = new window.kakao.maps.Marker({
-        position: latlng,
-        image: markerImage,
-        zIndex: 3
-      })
-
-      marker.setMap(newMap)
-      clickedMarkerRef.current = marker
-
-      // 클릭한 위치의 주소 가져오기
-      const geocoder = new window.kakao.maps.services.Geocoder()
-      geocoder.coord2Address(latlng.getLng(), latlng.getLat(), (result: any, status: any) => {
-        if (status === window.kakao.maps.services.Status.OK) {
-          const roadAddress = result[0].road_address?.address_name
-          const address = result[0].address.address_name
-          // 도로명주소에서 시/도 부분 제거
-          const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
-          setCurrentAddress(cleanAddress)
-        }
-      })
-    })
-
-    // 모든 장소에 마커 생성 (기본 파란색 마커 사용)
-    const newMarkers = places.map(place => {
-      const position = new window.kakao.maps.LatLng(place.lat, place.lon)
-      const marker = new window.kakao.maps.Marker({
-        position: position,
-        map: newMap
-      })
-
-      // 커스텀 오버레이 생성
-      const overlayContent = document.createElement('div')
-      overlayContent.className = 'bg-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium mb-4'
-      overlayContent.textContent = place.title
-
-      const overlay = new window.kakao.maps.CustomOverlay({
-        position: position,
-        content: overlayContent,
-        zIndex: 3,
-        yAnchor: 1.5
-      })
-
-      // 마커 클릭 이벤트
-      window.kakao.maps.event.addListener(marker, 'click', function() {
-        // 마커 위치로 지도 중심 이동 (애니메이션 효과 추가)
-        newMap.setCenter(position)
-        // 줌 레벨 조정
-        newMap.setLevel(3)
-        // 오버레이 표시
-        overlay.setMap(newMap)
-        setSelectedPlace(place)
-      })
-
-      // 다른 마커 클릭 시 현재 오버레이 숨기기
-      window.kakao.maps.event.addListener(newMap, 'click', function() {
-        overlay.setMap(null)
-      })
-
-      return marker
-    })
-
-    setMarkers(newMarkers)
-  }, [places])
-
-  // 카카오맵 스크립트 로드 및 초기화
+  // 초기 데이터 로드
   useEffect(() => {
-    const kakaoMapScript = document.createElement("script")
-    kakaoMapScript.async = true
-    kakaoMapScript.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&autoload=false&libraries=services`
-    document.head.appendChild(kakaoMapScript)
-
-    const onLoadKakaoAPI = () => {
-      window.kakao.maps.load(() => {
-        // place 배열이 비어있을 때만 fetchPopularPlaces 실행
         if (places.length === 0) {
           fetchPopularPlaces()
-        }
-      })
-    }
-
-    kakaoMapScript.addEventListener("load", onLoadKakaoAPI)
-
-    return () => {
-      kakaoMapScript.removeEventListener("load", onLoadKakaoAPI)
     }
   }, [])
 
-  // places가 변경될 때마다 지도 초기화
+  // ESC 키 이벤트 핸들러
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && isSearchFocused) {
+      setIsSearchFocused(false)
+      // 검색창 비활성화를 위해 input 요소의 blur 이벤트를 트리거
+      const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement
+      if (searchInput) {
+        searchInput.blur()
+      }
+    }
+  }
+
+  // ESC 키 이벤트 리스너 등록
   useEffect(() => {
-    if (window.kakao && window.kakao.maps) {
-      initializeMap()
-    }
-  }, [initializeMap])
-
-  // 마커 표시/숨김 처리
-  useEffect(() => {
-    if (!map) return
-
-    markers.forEach(marker => {
-      if (isList) {
-        marker.setMap(null)
-      } else {
-        marker.setMap(map)
-      }
-    })
-  }, [isList, map, markers])
-
-  const handlePlaceChange = (direction: 'prev' | 'next') => {
-    if (selectedPlace && places.length > 1) {
-      const currentIndex = places.indexOf(selectedPlace)
-      let newIndex
-
-      if (direction === 'prev') {
-        newIndex = (currentIndex - 1 + places.length) % places.length
-      } else {
-        newIndex = (currentIndex + 1) % places.length
-      }
-
-      const newPlace = places[newIndex]
-      setSelectedPlace(newPlace)
-
-      if (map) {
-        const position = new window.kakao.maps.LatLng(newPlace.lat, newPlace.lon)
-        map.panTo(position)
-        map.setLevel(3)
-      }
-    }
-  }
-
-  const handleScroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      const scrollAmount = 200 // 스크롤할 픽셀 양
-      const currentScroll = scrollRef.current.scrollLeft
-      const newScroll = direction === 'left' 
-        ? currentScroll - scrollAmount 
-        : currentScroll + scrollAmount
-      
-      scrollRef.current.scrollTo({
-        left: newScroll,
-        behavior: 'smooth'
-      })
-    }
-  }
-
-  const handleCardClick = (place: Place) => {
-    setSelectedPlace(place)
-    setShowModal(true)
-  }
-
-  const moveToCurrentLocation = () => {
-    if (!map) return
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude
-          const lng = position.coords.longitude
-          const locPosition = new window.kakao.maps.LatLng(lat, lng)
-          
-          map.setCenter(locPosition)
-          map.setLevel(3)
-
-          // 이전 현재 위치 마커 제거
-          if (currentLocationMarker) {
-            currentLocationMarker.setMap(null)
-          }
-
-          // 현재 위치 마커 생성
-          const markerImage = new window.kakao.maps.MarkerImage(
-            "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-            new window.kakao.maps.Size(24, 35)
-          )
-
-          const marker = new window.kakao.maps.Marker({
-            position: locPosition,
-            image: markerImage,
-            zIndex: 3
-          })
-
-          marker.setMap(map)
-          setCurrentLocationMarker(marker)
-
-          // 좌표로 주소 변환
-          const geocoder = new window.kakao.maps.services.Geocoder()
-          geocoder.coord2Address(lng, lat, (result: any, status: any) => {
-            if (status === window.kakao.maps.services.Status.OK) {
-              const roadAddress = result[0].road_address?.address_name
-              const address = result[0].address.address_name
-              // 도로명주소에서 시/도 부분 제거
-              const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
-              setCurrentAddress(cleanAddress)
-            }
-          })
-        },
-        (error) => {
-          console.error(error)
-          alert('위치 정보를 가져오는데 실패했습니다.')
-        }
-      )
-    } else {
-      alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
-    }
-  }
-
-  // 스크롤 감지
-  useEffect(() => {
-    const handleScroll = () => {
-      if (listViewRef.current) {
-        const scrollTop = listViewRef.current.scrollTop
-        setShowScrollTop(scrollTop > 100)
-      }
-    }
-
-    const listViewElement = listViewRef.current
-    if (listViewElement) {
-      listViewElement.addEventListener('scroll', handleScroll)
-    }
-
+    window.addEventListener('keydown', handleKeyDown)
     return () => {
-      if (listViewElement) {
-        listViewElement.removeEventListener('scroll', handleScroll)
-      }
+      window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
-
-  // 스크롤을 최상단으로 이동
-  const scrollToTop = () => {
-    if (listViewRef.current) {
-      listViewRef.current.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      })
-    }
-  }
-
-  const toggleKeywords = (placeId: number) => {
-    setExpandedKeywords(prev => ({
-      ...prev,
-      [placeId]: !prev[placeId]
-    }))
-  }
-
-  const handleCardBookmarkToggle = async (placeId: number, e: React.MouseEvent) => {
-    e.stopPropagation() // 카드 클릭 이벤트 방지
-
-    try {
-      const accessToken = localStorage.getItem('accessToken')
-      if (!accessToken) {
-        if (confirm("북마크를 추가하려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
-          router.push("/login")
-        }
-        return
-      }
-
-      const place = places.find(p => p.id === placeId)
-      if (!place) return
-
-      if (place.isBookmarked) {
-        // 북마크 삭제
-        await axiosInstance.delete(`/bookmarks/${placeId}`)
-      } else {
-        // 북마크 추가
-        await axiosInstance.post(`/bookmarks/${placeId}`)
-      }
-
-      // places 배열 업데이트
-      setPlaces(prev =>
-        prev.map((p) =>
-          p.id === placeId
-            ? { ...p, isBookmarked: !p.isBookmarked }
-            : p
-        )
-      )
-
-      // selectedPlace가 현재 토글한 장소라면 함께 업데이트
-      if (selectedPlace?.id === placeId) {
-        setSelectedPlace(prev => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null)
-      }
-    } catch (error) {
-      console.error('Failed to toggle bookmark:', error)
-    }
-  }
-
-  // places 배열이 변경될 때마다 실행
-  useEffect(() => {
-    console.log("places updated:", places)
-  }, [places])
+  }, [isSearchFocused])
 
   return (
-    <div className="relative w-full h-screen">
+    <div className="relative h-full">
+      <div className="absolute inset-0">
+        {!isKakaoLoaded ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+              <span className="text-sm text-gray-500">지도를 불러오는 중...</span>
+            </div>
+          </div>
+        ) : (
+          <Map
+            places={places}
+            onPlaceSelect={setSelectedPlace}
+            onMapClick={(lat, lng) => {
+              setManualLocation({
+                lat,
+                lon: lng
+              })
+
+              // 클릭한 위치의 주소 가져오기
+    const geocoder = new window.kakao.maps.services.Geocoder()
+              geocoder.coord2Address(lng, lat, (result: any, status: any) => {
+      if (status === window.kakao.maps.services.Status.OK) {
+        const roadAddress = result[0].road_address?.address_name
+        const address = result[0].address.address_name
+        // 도로명주소에서 시/도 부분 제거
+        const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+        setCurrentAddress(cleanAddress)
+      }
+    })
+            }}
+            center={mapCenter}
+            level={6}
+            className="w-full h-full"
+            initialPlace={places.length > 0 ? places[0] : undefined}
+          />
+        )}
+      </div>
+
       {/* 검색 오버레이 */}
       {isSearchFocused && (
-        <div className="fixed inset-0 bg-white z-40" />
-      )}
-      <div className="absolute top-4 left-4 right-4 z-50">
-        <form onSubmit={handleSearch} className="relative">
-          <Input 
-            className="pl-10 pr-10 py-2 bg-white rounded-full shadow-lg" 
-            placeholder="검색어를 입력하세요" 
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={handleSearchBlur}
-            onKeyDown={handleKeyDown}
-          />
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          {isSearchFocused && (
-            <button
-              type="button"
-              onClick={() => {
+        <div 
+          className="absolute inset-0 bg-black/50 z-10" 
+          onClick={() => setIsSearchFocused(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
                 setIsSearchFocused(false)
-                setSearchQuery("")
-                setAutoCompleteResults([])
-                setSelectedIndex(-1)
-              }}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-400" />
-            </button>
+            }
+          }}
+          tabIndex={0}
+        />
           )}
-        </form>
 
-        {/* 자동완성 결과 */}
-        {isSearchFocused && (searchQuery.trim() || isLoadingAutoComplete) && (
-          <div className="absolute left-0 right-0 mt-16 bg-white rounded-xl overflow-hidden">
-            {isLoadingAutoComplete ? (
-              <div className="p-4 text-center text-gray-500">
-                검색 중...
-              </div>
-            ) : autoCompleteResults.length > 0 ? (
-              <div className="overflow-y-auto">
-                {autoCompleteResults.map((result, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleAutoCompleteSelect(result.title)}
-                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-2 border-b last:border-b-0 ${
-                      index === selectedIndex ? 'bg-gray-50' : ''
-                    }`}
-                  >
-                    <Search className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-700">{result.title}</span>
-                  </button>
-                ))}
-              </div>
-            ) : searchQuery.trim() ? (
-              <div className="p-4 text-center text-gray-500">
-                검색 결과가 없습니다
-              </div>
-            ) : null}
+      {/* 검색창 */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] z-20">
+        <SearchBar
+          onSearch={fetchPlaces}
+          onFocusChange={setIsSearchFocused}
+        />
           </div>
-        )}
-        <div className="relative my-1">
-          {/* 왼쪽 스크롤 버튼 */}
-          <button 
-            onClick={() => handleScroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 bg-white p-2 rounded-full shadow-lg hover:bg-gray-50 transition-colors z-20"
-          >
-            <ChevronLeft className="w-4 h-4 text-gray-600" />
-          </button>
 
-          {/* 키워드 버튼 컨테이너 */}
-          <div 
-            ref={scrollRef}
-            className="flex overflow-x-auto scrollbar-hide px-4 py-2 justify-center"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {keywordList.length > 0 ? (
-              keywordList.map((keyword, index) => (
-                <button 
-                  key={index}
-                  className="flex-shrink-0 px-4 py-2 mx-1 bg-orange-50 rounded-full shadow-lg text-sm whitespace-nowrap"
+      {/* 현재 주소 표시 */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[15]">
+        <div 
+          className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-[0.8rem] text-gray-700 flex items-center gap-2 max-w-[80vw] cursor-pointer hover:bg-white/95 transition-colors"
                   onClick={() => {
-                    setSearchQuery(keyword)
-                    fetchPlaces("keyword", keyword)
-                  }}
-                >
-                  {keyword}
-                </button>
-              ))
-            ) : (
-              <>
-                
-              </>
-            )}
-          </div>
-
-          {/* 오른쪽 스크롤 버튼 */}
-          <button 
-            onClick={() => handleScroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 bg-white p-2 rounded-full shadow-lg hover:bg-gray-50 transition-colors z-20"
-          >
-            <ChevronRight className="w-4 h-4 text-gray-600" />
-          </button>
+            if (userLocation) {
+              setManualLocation({
+                lat: userLocation.lat,
+                lon: userLocation.lon
+              })
+              // 지도 중심 이동을 위해 Map 컴포넌트의 center prop 업데이트
+              const mapCenter = {
+                lat: userLocation.lat,
+                lng: userLocation.lon
+              }
+              setMapCenter(mapCenter)
+            }
+          }}
+        >
+          <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
+          <span className="truncate">{currentAddress}</span>
         </div>
       </div>
 
-      {/* 현재 위치 버튼 */}
-      {!isList && (
-        <div className="absolute top-32 left-4 right-4 z-30 flex items-center justify-between">
+      {/* 장소 목록 */}
+      {places.length > 0 && (
+        <div className={`absolute max-w-6xl mx-auto bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 transition-all duration-300 ${isResultsMinimized ? 'max-h-[60px]' : 'max-h-[40vh]'}`}>
           <div 
-            className="bg-gray-100/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:bg-gray-200/90 transition-colors"
-            onClick={() => {
-              navigator.clipboard.writeText(currentAddress)
-                .then(() => {
-                  alert('주소가 클립보드에 복사되었습니다.')
-                })
-                .catch(() => {
-                  alert('주소 복사에 실패했습니다.')
-                })
-            }}
+            className="flex items-center justify-between p-3 border-b cursor-pointer"
+            onClick={() => setIsResultsMinimized(!isResultsMinimized)}
           >
-            <span className="text-sm text-gray-700 font-medium truncate max-w-[270px] block">
-              {currentAddress}
-            </span>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">검색 결과</h2>
+              <span className="text-sm text-gray-500">({places.length}개)</span>
+            </div>
+            <ChevronUp className={`w-5 h-5 transition-transform duration-300 ${isResultsMinimized ? '' : 'rotate-180'}`} />
           </div>
-          <button 
-            onClick={moveToCurrentLocation}
-            className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
-          >
-            <MapPin className="w-4 h-4" />
-            <span className="text-sm">현재 위치</span>
-          </button>
-        </div>
-      )}
 
-      {/* 지도/리스트 뷰 */}
-      {isList ? (
-        <div className="pt-24 pb-24 px-4 h-full overflow-y-auto">
-          <div className="space-y-4">
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-500">
-                카페 목록을 불러오는 중...
-              </div>
-            ) : places.length > 0 ? (
-              places.map((place) => (
-                <div
+          <div className={`transition-all duration-300 ${isResultsMinimized ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
+            <div className="flex gap-4 px-4 pb-3 overflow-x-auto scrollbar-hide" ref={scrollRef}>
+              {places.map((place) => (
+                <PlaceCard
                   key={place.id}
-                  onClick={() => {
-                    setSelectedPlace(place)
-                    setShowModal(true)
-                  }}
-                  className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-                >
-                  <div className="flex gap-4">
-                    <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                      <img 
-                        src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                        alt={place.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = FALLBACK_IMAGE_URL;
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <h2 className="text-lg font-bold truncate">{place.title}</h2>
-                          <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
-                            <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
-                          </div>
-                          <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
-                        </div>
-                        <button 
-                          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                          onClick={(e) => handleCardBookmarkToggle(place.id, e)}
-                        >
-                          <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600 text-sm">
-                        <MapPin className="w-4 h-4" />
-                        <span className="truncate">{place.address}</span>
-                      </div>
-                      {place.keywordList && place.keywordList.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <div className="flex-1 flex flex-wrap gap-1">
-                            {place.keywordList
-                              .slice(0, expandedKeywords[place.id] ? undefined : 5)
-                              .map((keyword, index) => (
-                                <span 
-                                  key={index}
-                                  className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
-                                >
-                                  {keyword.keyword}
-                                </span>
-                              ))}
-                          </div>
-                          {place.keywordList.length > 5 && (
-                            <button
-                              onClick={() => toggleKeywords(place.id)}
-                              className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
-                            >
-                              {expandedKeywords[place.id] ? '접기' : '더보기'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                카페 목록이 없습니다
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div ref={mapRef} className="w-full h-[100vh] absolute inset-0" />
-      )}
-
-      {/* 리스트 뷰 오버레이 */}
-      {isList && (
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-20" onClick={() => setList(false)}>
-          <div className="absolute top-32 inset-x-0 bottom-0 bg-white" onClick={(e) => e.stopPropagation()}>
-            <div className="h-full flex flex-col">
-              {/* 리스트 헤더 */}
-              <div className="px-4 py-2 border-b flex items-center justify-between">
-                <h2 className="text-xl font-bold">장소 목록</h2>
-                <div className="flex bg-white rounded-full shadow-lg p-0.5">
-                  <button
-                    onClick={() => setList(false)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
-                      !isList ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <MapPin className="w-4 h-4" />
-                    <span className="text-xs font-medium">지도</span>
-                  </button>
-                  <button
-                    onClick={() => setList(true)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
-                      isList ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                    <span className="text-xs font-medium">목록</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 리스트 컨텐츠 */}
-              <div className="flex-1 overflow-y-auto px-4 py-2 pb-24">
-                <div className="space-y-4">
-                  {isLoading ? (
-                    <div className="text-center py-8 text-gray-500">
-                      카페 목록을 불러오는 중...
-                    </div>
-                  ) : places.length > 0 ? (
-                    places.map((place) => (
-                      <div
-                        key={place.id}
-                        onClick={() => {
-                          setSelectedPlace(place)
-                          setShowModal(true)
-                        }}
-                        className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-                      >
-                        <div className="flex gap-4">
-                          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                            <img 
-                              src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                              alt={place.title}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = FALLBACK_IMAGE_URL;
-                              }}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <h2 className="text-lg font-bold truncate">{place.title}</h2>
-                                <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
-                                  <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
-                                </div>
-                                <span className="text-gray-500 text-sm flex-shrink-0">({place.reviewCount})</span>
-                              </div>
-                              <button 
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                                onClick={(e) => handleCardBookmarkToggle(place.id, e)}
-                              >
-                                <Heart className={`w-5 h-5 ${place.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-600 text-sm">
-                              <MapPin className="w-4 h-4" />
-                              <span className="truncate">{place.address}</span>
-                            </div>
-                            {place.keywordList && place.keywordList.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <div className="flex-1 flex flex-wrap gap-1">
-                                  {place.keywordList
-                                    .slice(0, expandedKeywords[place.id] ? undefined : 5)
-                                    .map((keyword, index) => (
-                                      <span 
-                                        key={index}
-                                        className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
-                                      >
-                                        {keyword.keyword}
-                                      </span>
-                                    ))}
-                                </div>
-                                {place.keywordList.length > 5 && (
-                                  <button
-                                    onClick={() => toggleKeywords(place.id)}
-                                    className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
-                                  >
-                                    {expandedKeywords[place.id] ? '접기' : '더보기'}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      카페 목록이 없습니다
-                    </div>
-                  )}
-                </div>
-              </div>
+                  place={place}
+                  onClick={setSelectedPlace}
+                  variant="scroll"
+                />
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {selectedPlace && !isList && (
-        <>
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-10">
-            {/* 토글 버튼 */}
-            <div className="absolute -top-12 right-0 flex bg-white rounded-full shadow-lg p-0.5">
-              <button
-                onClick={() => setList(false)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
-                  !isList ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <MapPin className="w-4 h-4" />
-                <span className="text-xs font-medium">지도</span>
-              </button>
-              <button
-                onClick={() => setList(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
-                  isList ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <List className="w-4 h-4" />
-                <span className="text-xs font-medium">목록</span>
-              </button>
-            </div>
-
-            {/* 이전 버튼 */}
-            <button 
-              onClick={() => handlePlaceChange('prev')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 -translate-x-6 bg-gray-100 p-3 rounded-full shadow-lg hover:bg-orange-200 transition-colors z-20"
-            >
-              <ChevronLeft className="w-6 h-6 text-gray-600" />
-            </button>
-
-            {/* 카드 */}
-            <div 
-              onClick={() => handleCardClick(selectedPlace)}
-              className="bg-white rounded-2xl shadow-lg px-10 py-4 cursor-pointer hover:shadow-xl transition-shadow h-[180px]"
-            >
-              <div className="flex items-center gap-4 h-full">
-                {/* 왼쪽 컨텐츠 영역 */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold truncate">{selectedPlace?.title}</h2>
-                    <button 
-                      className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleCardBookmarkToggle(selectedPlace.id, e)
-                      }}
-                    >
-                      <Heart className={`w-6 h-6 ${selectedPlace?.isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg flex-shrink-0">
-                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                      <span className="font-medium text-orange-600 text-sm">{selectedPlace?.rate}</span>
-                    </div>
-                    <span className="text-gray-500 text-sm flex-shrink-0">({selectedPlace?.reviewCount})</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    <span className="truncate">{selectedPlace?.address}</span>
-                  </div>
-                </div>
-                {/* 오른쪽 이미지 영역 */}
-                <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
-                  <img 
-                    src={selectedPlace?.imageUrl || FALLBACK_IMAGE_URL} 
-                    alt={selectedPlace?.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = FALLBACK_IMAGE_URL;
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 다음 버튼 */}
-            <button 
-              onClick={() => handlePlaceChange('next')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 translate-x-6 bg-gray-100 p-3 rounded-full shadow-lg hover:bg-orange-200 transition-colors z-20"
-            >
-              <ChevronRight className="w-6 h-6 text-gray-600" />
-            </button>
-          </div>
-        </>
-      )}
-
-      {showModal && selectedPlace && (
+      {/* 장소 상세 모달 */}
+      {selectedPlace && (
         <PlaceDetailModal 
           place={selectedPlace} 
-          onClose={() => {
-            setShowModal(false)
-          }}
-          onBookmarkChange={(placeId, isBookmarked) => {
-            setPlaces(prev =>
-              prev.map((place) =>
-                place.id === placeId
-                  ? { ...place, isBookmarked }
-                  : place
-              )
-            )
+          onClose={() => setSelectedPlace(null)}
+          onBookmarkChange={(placeId: number, isBookmarked: boolean) => {
+            setIsBookmarked(prev => ({
+              ...prev,
+              [placeId]: isBookmarked
+            }))
           }}
         />
       )}
-
-      {/* 최상단 버튼 */}
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-24 right-4 p-3 bg-white/80 rounded-full shadow-lg hover:bg-white transition-colors z-50"
-        >
-          <ChevronUp className="w-5 h-5" />
-        </button>
-      )}
-
     </div>
   )
 }

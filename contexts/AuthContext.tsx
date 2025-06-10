@@ -62,14 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // await axiosInstance.post('/api/v1/auth/logout')
       localStorage.removeItem('accessToken')
       setAccessToken(null)
       setIsAuthenticated(false)
       router.push('/')
-    } catch (error) {
-      console.error('Logout failed:', error)
-      throw error
+    } catch {
+      throw new Error('Logout failed')
     }
   }
 

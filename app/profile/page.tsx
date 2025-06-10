@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
 import axiosInstance from '@/lib/axios'
+import { FALLBACK_IMAGE_URL } from "../constants"
 
 export default function Profile() {
   const router = useRouter()
@@ -59,22 +60,22 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-full bg-gray-50">
       {/* 헤더 섹션 */}      
       <div className="bg-white border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">
         <h1 className="text-xl font-bold">프로필</h1>
         </div>
       </div>
-
+      
       {/* 프로필 카드 */}
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden">
+            <div className="relative w-20 h-20 rounded-full overflow-hidden">
               <img
-                src={profile.imageUrl}
-                alt="프로필 이미지"
+                src={profile.imageUrl || FALLBACK_IMAGE_URL}
+                alt="Profile"
                 className="w-full h-full object-cover"
               />
             </div>
