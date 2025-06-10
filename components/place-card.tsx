@@ -81,6 +81,20 @@ export function PlaceCard({ place, onClick, variant = 'grid', onBookmarkChange }
           <MapPin className="w-3 h-3 flex-shrink-0" />
           <span className="truncate">{place.address}</span>
         </div>
+        {place.keywordList && place.keywordList.length > 0 && (
+          <div className="mt-2 h-5 overflow-hidden">
+            <div className="flex flex-wrap gap-1">
+              {place.keywordList.slice(0, 5).map((keyword, index) => (
+                <span 
+                  key={index}
+                  className="px-1.5 py-0.5 bg-orange-50 text-orange-600 text-[10px] rounded-full"
+                >
+                  {keyword.keyword}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

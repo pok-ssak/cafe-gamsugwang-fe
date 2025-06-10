@@ -72,17 +72,31 @@ export function PlaceHorizontalCard({ place, onClick, onBookmarkChange }: PlaceH
           }}
         />
       </div>
-      <div className="flex-1 p-3">
-        <h3 className="font-medium mb-1 line-clamp-1">{place.title}</h3>
-        <div className="flex items-center gap-1 text-sm text-gray-500 mb-1">
-          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+      <div className="flex-1 p-2">
+        <h3 className="font-medium text-sm line-clamp-1">{place.title}</h3>
+        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
           <span>{place.rate}</span>
           <span className="text-gray-400">({place.reviewCount})</span>
         </div>
-        <div className="flex items-center gap-1 text-sm text-gray-500">
-          <MapPin className="w-4 h-4" />
+        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+          <MapPin className="w-3 h-3" />
           <span className="line-clamp-1">{place.address}</span>
         </div>
+        {place.keywordList && place.keywordList.length > 0 && (
+          <div className="mt-1 h-5 overflow-hidden">
+            <div className="flex flex-wrap gap-1">
+              {place.keywordList.slice(0, 5).map((keyword, index) => (
+                <span 
+                  key={index}
+                  className="px-1.5 py-0.5 bg-orange-50 text-orange-600 text-[10px] rounded-full"
+                >
+                  {keyword.keyword}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

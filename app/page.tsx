@@ -13,6 +13,8 @@ import { useLocation } from "@/contexts/LocationContext"
 import { Map } from "@/components/map"
 import { SearchBar } from "@/components/search-bar"
 import { PlaceCard } from "@/components/place-card"
+import { useAuth } from "@/contexts/AuthContext"
+import { useKeywordRecommend } from "@/hooks/useKeywordRecommend"
 
 declare global {
   interface Window {
@@ -47,6 +49,11 @@ export default function Home() {
   const [isKakaoLoaded, setIsKakaoLoaded] = useState(false)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined)
   const [isResultsMinimized, setIsResultsMinimized] = useState(false)
+  const keywordScrollRef = useRef<HTMLDivElement>(null)
+  const [showLeftKeywordScroll, setShowLeftKeywordScroll] = useState(false)
+  const [showRightKeywordScroll, setShowRightKeywordScroll] = useState(false)
+  const { isAuthenticated } = useAuth()
+  const { keywordRecommend } = useKeywordRecommend()
 
   // 마우스 휠 이벤트 핸들러
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -180,6 +187,69 @@ export default function Home() {
     }
   }, [isSearchFocused])
 
+  const scrollKeywordsLeft = () => {
+    if (keywordScrollRef.current) {
+      keywordScrollRef.current.scrollTo({
+        left: keywordScrollRef.current.scrollLeft - 300,
+        behavior: 'smooth'
+      });
+    }
+  }
+
+  const scrollKeywordsRight = () => {
+    if (keywordScrollRef.current) {
+      keywordScrollRef.current.scrollTo({
+        left: keywordScrollRef.current.scrollLeft + 300,
+        behavior: 'smooth'
+      });
+    }
+  }
+
+  // 키워드 스크롤 버튼 가시성 관리
+  useEffect(() => {
+    const handleScroll = () => {
+      if (keywordScrollRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = keywordScrollRef.current
+        setShowLeftKeywordScroll(scrollLeft > 0)
+        setShowRightKeywordScroll(scrollLeft < scrollWidth - clientWidth - 1) // -1은 부동 소수점 오차 방지
+      }
+    }
+
+    if (keywordScrollRef.current) {
+      keywordScrollRef.current.addEventListener('scroll', handleScroll)
+      handleScroll() // 초기 로드 시 가시성 설정
+    }
+
+    return () => {
+      if (keywordScrollRef.current) {
+        keywordScrollRef.current.removeEventListener('scroll', handleScroll)
+      }
+    }
+  }, [keywordList])
+
+  // 키워드 클릭 핸들러
+  const handleKeywordClick = async (keyword: string) => {
+    if (!isAuthenticated) {
+      alert('로그인이 필요한 서비스입니다.')
+      return
+    }
+
+    try {
+      await keywordRecommend.fetchPlaces([keyword])
+      if (keywordRecommend.places) {
+        setPlaces(keywordRecommend.places)
+        // 키워드 리스트 업데이트
+        const keywords = keywordRecommend.places.flatMap((place: Place) => 
+          (place.keywordList || []).map(k => k.keyword)
+        )
+        setKeywordList(Array.from(new Set(keywords)))
+      }
+    } catch (error) {
+      console.error('Failed to fetch keyword recommendations:', error)
+      alert('키워드 추천을 불러오는데 실패했습니다.')
+    }
+  }
+
   return (
     <div className="relative h-full">
       <div className="absolute inset-0">
@@ -243,7 +313,7 @@ export default function Home() {
           </div>
 
       {/* 현재 주소 표시 */}
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[15]">
+      <div className=" absolute top-20 left-1/2 -translate-x-1/2 z-[15]">
         <div 
           className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-[0.8rem] text-gray-700 flex items-center gap-2 max-w-[80vw] cursor-pointer hover:bg-white/95 transition-colors"
                   onClick={() => {
@@ -266,9 +336,51 @@ export default function Home() {
         </div>
       </div>
 
+      {/* 키워드 목록 */}
+      {keywordList.length > 0 && (
+        <div className={`absolute max-w-6xl mx-auto left-0 right-0 z-10 transition-all duration-300 ${isResultsMinimized ? 'bottom-[60px]' : 'bottom-[290px]'}`}>
+          <div className="max-w-2xl mx-auto relative">
+            <div className="mx-4 pb-2 bg-transparent rounded-lg shadow-lg">
+              <div className="px-4 py-3">
+                <div 
+                  ref={keywordScrollRef}
+                  className="flex gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap transition-all duration-300 ease-in-out [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                >
+                  {keywordList.map((keyword, index) => (
+                    <span 
+                      key={index}
+                      className="px-3 py-1.5 bg-orange-50 text-gray-600 text-sm rounded-full flex-shrink-0 shadow-md cursor-pointer hover:bg-orange-100 transition-colors"
+                      onClick={() => handleKeywordClick(keyword)}
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {showLeftKeywordScroll && (
+                <button 
+                  onClick={scrollKeywordsLeft}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 bg-white/70 backdrop-blur-sm p-1 rounded-full shadow-md"
+                >
+                  <ChevronLeft className="w-5 h-5 text-gray-600" />
+                </button>
+              )}
+              {showRightKeywordScroll && (
+                <button 
+                  onClick={scrollKeywordsRight}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 bg-white/70 backdrop-blur-sm p-1 rounded-full shadow-md"
+                >
+                  <ChevronRight className="w-5 h-5 text-gray-600" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 장소 목록 */}
       {places.length > 0 && (
-        <div className={`absolute max-w-6xl mx-auto bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 transition-all duration-300 ${isResultsMinimized ? 'max-h-[60px]' : 'max-h-[40vh]'}`}>
+        <div className={`absolute max-w-6xl mx-auto bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 transition-all duration-300 ${isResultsMinimized ? 'h-[60px]' : 'h-auto'}`}>
           <div 
             className="flex items-center justify-between p-3 border-b cursor-pointer"
             onClick={() => setIsResultsMinimized(!isResultsMinimized)}
