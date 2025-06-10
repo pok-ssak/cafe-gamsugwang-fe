@@ -145,17 +145,17 @@ export default function Feed() {
 
   return (
     <div className="min-h-full bg-gray-50">
-      {/* 상단 필터 */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold">피드</h1>
-          <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <Filter className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
+      {/* 헤더 섹션 */}      
+      <div className="bg-white">
+        <div className="max-w-2xl mx-auto px-4 py-4">
+        <h1 className="text-xl font-bold">피드</h1>
         </div>
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
+      </div>
+
+      {/* 필터 */}
+      <div className="sticky pt-2 top-0 z-10 bg-white border-b shadow-sm">
+      <div className="max-w-2xl mx-auto px-4">
+        <div className="flex gap-2 px-2 pb-3 overflow-x-auto scrollbar-hide">
           {filters.map((filter) => (
             <button
               key={filter.id}
@@ -169,6 +169,7 @@ export default function Feed() {
               {filter.name}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

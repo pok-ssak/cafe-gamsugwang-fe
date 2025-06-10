@@ -12,6 +12,7 @@ import { usePlaces } from "@/contexts/PlacesContext"
 import { useLocation } from "@/contexts/LocationContext"
 import { Map } from "@/components/map"
 import { SearchBar } from "@/components/search-bar"
+import { PlaceCard } from "@/components/place-card"
 
 declare global {
   interface Window {
@@ -26,7 +27,6 @@ export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftButton, setShowLeftButton] = useState(false)
   const [showRightButton, setShowRightButton] = useState(true)
-  const [isList, setList] = useState(false)
   const router = useRouter()
   const [showScrollTop, setShowScrollTop] = useState(false)
   const listViewRef = useRef<HTMLDivElement>(null)
@@ -45,6 +45,16 @@ export default function Home() {
     number: number;
   } | null>(null)
   const [isKakaoLoaded, setIsKakaoLoaded] = useState(false)
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined)
+  const [isResultsMinimized, setIsResultsMinimized] = useState(false)
+
+  // 마우스 휠 이벤트 핸들러
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const container = e.currentTarget
+    const scrollAmount = e.deltaY
+    container.scrollLeft += scrollAmount
+    e.preventDefault()
+  }
 
   // 인기 카페 목록 가져오기
   const fetchPopularPlaces = async () => {
@@ -109,12 +119,8 @@ export default function Home() {
       })
       setIsSearchFocused(false)
 
-      // 검색 결과가 있으면 첫 번째 카드 선택
-      if (response.data.data.content.length > 0) {
-        setSelectedPlace(response.data.data.content[0])
-      } else {
+      // 검색 결과가 있더라도 자동으로 첫 번째 카드 선택하지 않음
         setSelectedPlace(null)
-      }
 
       // 키워드 리스트 업데이트
       const keywords = response.data.data.content.flatMap((place: Place) => 
@@ -138,7 +144,7 @@ export default function Home() {
       window.kakao.maps.load(() => {
         setIsKakaoLoaded(true)
       })
-    }
+  }
 
     document.head.appendChild(script)
 
@@ -158,6 +164,11 @@ export default function Home() {
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && isSearchFocused) {
       setIsSearchFocused(false)
+      // 검색창 비활성화를 위해 input 요소의 blur 이벤트를 트리거
+      const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement
+      if (searchInput) {
+        searchInput.blur()
+      }
     }
   }
 
@@ -172,7 +183,14 @@ export default function Home() {
   return (
     <div className="relative h-full">
       <div className="absolute inset-0">
-        {isKakaoLoaded && (
+        {!isKakaoLoaded ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+              <span className="text-sm text-gray-500">지도를 불러오는 중...</span>
+            </div>
+          </div>
+        ) : (
           <Map
             places={places}
             onPlaceSelect={setSelectedPlace}
@@ -183,20 +201,21 @@ export default function Home() {
               })
 
               // 클릭한 위치의 주소 가져오기
-              const geocoder = new window.kakao.maps.services.Geocoder()
+    const geocoder = new window.kakao.maps.services.Geocoder()
               geocoder.coord2Address(lng, lat, (result: any, status: any) => {
-                if (status === window.kakao.maps.services.Status.OK) {
-                  const roadAddress = result[0].road_address?.address_name
-                  const address = result[0].address.address_name
-                  // 도로명주소에서 시/도 부분 제거
-                  const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
-                  setCurrentAddress(cleanAddress)
-                }
-              })
+      if (status === window.kakao.maps.services.Status.OK) {
+        const roadAddress = result[0].road_address?.address_name
+        const address = result[0].address.address_name
+        // 도로명주소에서 시/도 부분 제거
+        const cleanAddress = (roadAddress || address).replace(/^[가-힣]+(시|도)\s+/, '')
+        setCurrentAddress(cleanAddress)
+      }
+    })
             }}
-            center={userLocation ? { lat: userLocation.lat, lng: userLocation.lon } : undefined}
-            level={3}
+            center={mapCenter}
+            level={6}
             className="w-full h-full"
+            initialPlace={places.length > 0 ? places[0] : undefined}
           />
         )}
       </div>
@@ -208,12 +227,12 @@ export default function Home() {
           onClick={() => setIsSearchFocused(false)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
-              setIsSearchFocused(false)
+                setIsSearchFocused(false)
             }
           }}
           tabIndex={0}
         />
-      )}
+          )}
 
       {/* 검색창 */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] z-20">
@@ -221,59 +240,65 @@ export default function Home() {
           onSearch={fetchPlaces}
           onFocusChange={setIsSearchFocused}
         />
+          </div>
+
+      {/* 현재 주소 표시 */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[15]">
+        <div 
+          className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-[0.8rem] text-gray-700 flex items-center gap-2 max-w-[80vw] cursor-pointer hover:bg-white/95 transition-colors"
+                  onClick={() => {
+            if (userLocation) {
+              setManualLocation({
+                lat: userLocation.lat,
+                lon: userLocation.lon
+              })
+              // 지도 중심 이동을 위해 Map 컴포넌트의 center prop 업데이트
+              const mapCenter = {
+                lat: userLocation.lat,
+                lng: userLocation.lon
+              }
+              setMapCenter(mapCenter)
+            }
+          }}
+        >
+          <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
+          <span className="truncate">{currentAddress}</span>
+        </div>
       </div>
 
       {/* 장소 목록 */}
       {places.length > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-bold">검색 결과</h2>
-            <button
-              onClick={() => setList(!isList)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              {isList ? <Compass className="w-5 h-5" /> : <List className="w-5 h-5" />}
-            </button>
+        <div className={`absolute max-w-6xl mx-auto bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 transition-all duration-300 ${isResultsMinimized ? 'max-h-[60px]' : 'max-h-[40vh]'}`}>
+          <div 
+            className="flex items-center justify-between p-3 border-b cursor-pointer"
+            onClick={() => setIsResultsMinimized(!isResultsMinimized)}
+          >
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">검색 결과</h2>
+              <span className="text-sm text-gray-500">({places.length}개)</span>
+            </div>
+            <ChevronUp className={`w-5 h-5 transition-transform duration-300 ${isResultsMinimized ? '' : 'rotate-180'}`} />
           </div>
 
-          <div className="p-4">
-            <div className="flex gap-4 overflow-x-auto pb-4" ref={scrollRef}>
+          <div className={`transition-all duration-300 ${isResultsMinimized ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
+            <div className="flex gap-4 px-4 pb-3 overflow-x-auto scrollbar-hide" ref={scrollRef}>
               {places.map((place) => (
-                <div
+                <PlaceCard
                   key={place.id}
-                  className="flex-none w-64 bg-white rounded-lg shadow-md overflow-hidden cursor-pointer"
-                  onClick={() => setSelectedPlace(place)}
-                >
-                  <div className="relative h-40">
-                    <img 
-                      src={place.imageUrl || FALLBACK_IMAGE_URL} 
-                      alt={place.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-bold mb-2">{place.title}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span>{place.rate}</span>
-                      <span>({place.reviewCount})</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                      <MapPin className="w-4 h-4" />
-                      <span className="truncate">{place.address}</span>
-                    </div>
-                  </div>
-                </div>
+                  place={place}
+                  onClick={setSelectedPlace}
+                  variant="scroll"
+                />
               ))}
-              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* 장소 상세 모달 */}
       {selectedPlace && (
-        <PlaceDetailModal
-          place={selectedPlace}
+        <PlaceDetailModal 
+          place={selectedPlace} 
           onClose={() => setSelectedPlace(null)}
           onBookmarkChange={(placeId: number, isBookmarked: boolean) => {
             setIsBookmarked(prev => ({

@@ -8,6 +8,7 @@ interface MapProps {
   center?: { lat: number; lng: number }
   level?: number
   className?: string
+  initialPlace?: Place
 }
 
 export function Map({ 
@@ -16,11 +17,13 @@ export function Map({
   onMapClick,
   center,
   level = 3,
-  className = "w-full h-full"
+  className = "w-full h-full",
+  initialPlace
 }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
   const [markers, setMarkers] = useState<any[]>([])
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
 
   // Initialize map
   useEffect(() => {
@@ -66,86 +69,77 @@ export function Map({
     }
   }, [places, center]) // Add places and center as dependencies
 
-  // Update markers when places change
+  // 마커 생성 함수
+  const createMarker = (place: Place) => {
+    const marker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(place.lat, place.lon),
+      map: map
+    })
+
+    // 마커 클릭 이벤트
+    window.kakao.maps.event.addListener(marker, 'click', () => {
+      setSelectedPlace(place)
+    })
+
+    return marker
+  }
+
+  // 마커 생성 및 관리
   useEffect(() => {
-    if (!map) return
+    if (!map || !places) return
 
-    console.log('Updating markers for places:', places)
+    // 기존 마커 제거
+    markers.forEach(marker => marker.setMap(null))
+    setMarkers([])
 
-    // Remove existing markers
-    markers.forEach(marker => {
-      if (marker.marker) {
-        marker.marker.setMap(null)
-      }
-      if (marker.overlay) {
-        marker.overlay.setMap(null)
-      }
-    })
-
-    const newMarkers: any[] = []
-
-    // Create new markers for each place
-    places.forEach(place => {
-      if (!place.lat || !place.lon) {
-        console.warn('Place missing coordinates:', place)
-        return
-      }
-
-      console.log('Creating marker for place:', place.title, 'at', place.lat, place.lon)
-
-      const position = new window.kakao.maps.LatLng(place.lat, place.lon)
-      
-      // Create marker
-      const marker = new window.kakao.maps.Marker({
-        position: position,
-        map: map
-      })
-
-      // Create custom overlay for marker
-      const overlayContent = document.createElement('div')
-      overlayContent.className = 'bg-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium mb-4'
-      overlayContent.textContent = place.title
-
-      const overlay = new window.kakao.maps.CustomOverlay({
-        position: position,
-        content: overlayContent,
-        zIndex: 3,
-        yAnchor: 1.5
-      })
-
-      // Add click event listener to marker
-      window.kakao.maps.event.addListener(marker, 'click', function() {
-        // Remove all existing overlays
-        newMarkers.forEach(m => {
-          if (m.overlay) {
-            m.overlay.setMap(null)
-          }
-        })
-
-        // Move map center to marker position
-        map.setCenter(position)
-        map.setLevel(level)
-        
-        // Show overlay
-        overlay.setMap(map)
-        
-        // Call onPlaceSelect callback
-        onPlaceSelect?.(place)
-      })
-
-      newMarkers.push({ marker, overlay })
-    })
-
-    console.log('Created markers:', newMarkers.length)
+    // 새로운 마커 생성
+    const newMarkers = places.map(place => createMarker(place))
     setMarkers(newMarkers)
-  }, [map, places, level])
+
+    return () => {
+      newMarkers.forEach(marker => marker.setMap(null))
+    }
+  }, [map, places])
 
   // Update map center when center prop changes
   useEffect(() => {
     if (!map || !center) return
     const position = new window.kakao.maps.LatLng(center.lat, center.lng)
     map.setCenter(position)
-  }, [map, center])
+    map.setLevel(level)
+  }, [map, center, level])
+
+  // 현재 위치 마커 생성
+  useEffect(() => {
+    if (!map || !center) return
+
+    // 현재 위치 마커 이미지 생성
+    const currentLocationImage = new window.kakao.maps.MarkerImage(
+      "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
+      new window.kakao.maps.Size(24, 35)
+    )
+
+    // 현재 위치 마커 생성
+    const currentLocationMarker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(center.lat, center.lng),
+      image: currentLocationImage,
+      zIndex: 4
+    })
+
+    // 마커를 지도에 표시
+    currentLocationMarker.setMap(map)
+
+    // 마커 클릭 이벤트 추가
+    window.kakao.maps.event.addListener(currentLocationMarker, 'click', function() {
+      // 현재 위치로 지도 중심 이동
+      map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng))
+      map.setLevel(level)
+    })
+
+    return () => {
+      currentLocationMarker.setMap(null)
+    }
+  }, [map, center, level])
 
   return <div ref={mapRef} className={className} />
 } 

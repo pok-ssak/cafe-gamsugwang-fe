@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
 import axiosInstance from '@/lib/axios'
+import { FALLBACK_IMAGE_URL } from "../constants"
 
 export default function Profile() {
   const router = useRouter()
@@ -71,10 +72,10 @@ export default function Profile() {
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden">
+            <div className="relative w-20 h-20 rounded-full overflow-hidden">
               <img
-                src={profile.imageUrl}
-                alt="프로필 이미지"
+                src={profile.imageUrl || FALLBACK_IMAGE_URL}
+                alt="Profile"
                 className="w-full h-full object-cover"
               />
             </div>

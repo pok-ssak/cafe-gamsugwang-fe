@@ -6,14 +6,13 @@ import { useState } from "react"
 import axiosInstance from "@/lib/axios"
 import { useRouter } from "next/navigation"
 
-interface PlaceCardProps {
+interface PlaceHorizontalCardProps {
   place: Place
-  onClick: (place: Place) => void
-  variant?: 'scroll' | 'grid'
+  onClick?: () => void
   onBookmarkChange?: (placeId: number, isBookmarked: boolean) => void
 }
 
-export function PlaceCard({ place, onClick, variant = 'grid', onBookmarkChange }: PlaceCardProps) {
+export function PlaceHorizontalCard({ place, onClick, onBookmarkChange }: PlaceHorizontalCardProps) {
   const router = useRouter()
   const [isBookmarked, setIsBookmarked] = useState(place.isBookmarked || false)
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false)
@@ -50,36 +49,39 @@ export function PlaceCard({ place, onClick, variant = 'grid', onBookmarkChange }
   }
 
   return (
-    <div
-      className={`flex-none bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow ${
-        variant === 'scroll' ? 'w-64' : 'w-full min-w-[140px] max-w-[280px]'
-      }`}
-      onClick={() => onClick(place)}
+    <div 
+      className="flex bg-white rounded-lg overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-shadow relative"
+      onClick={onClick}
     >
-      <div className="relative h-32">
-        <img 
-          src={place.imageUrl || FALLBACK_IMAGE_URL} 
+      <button 
+        className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full shadow-sm hover:bg-white transition-colors z-10"
+        onClick={handleBookmarkToggle}
+        disabled={isBookmarkLoading}
+      >
+        <Heart className={`w-4 h-4 ${isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+      </button>
+      <div className="relative w-24 h-24 flex-shrink-0">
+        <Image
+          src={place.imageUrl || FALLBACK_IMAGE_URL}
           alt={place.title}
-          className="w-full h-full object-cover"
+          fill
+          className="object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = FALLBACK_IMAGE_URL;
+          }}
         />
-        <button 
-          className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full shadow-sm hover:bg-white transition-colors"
-          onClick={handleBookmarkToggle}
-          disabled={isBookmarkLoading}
-        >
-          <Heart className={`w-4 h-4 ${isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-        </button>
       </div>
-      <div className="p-3">
-        <h3 className="font-bold mb-1 text-sm truncate">{place.title}</h3>
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+      <div className="flex-1 p-3">
+        <h3 className="font-medium mb-1 line-clamp-1">{place.title}</h3>
+        <div className="flex items-center gap-1 text-sm text-gray-500 mb-1">
+          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
           <span>{place.rate}</span>
-          <span>({place.reviewCount})</span>
+          <span className="text-gray-400">({place.reviewCount})</span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
-          <MapPin className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{place.address}</span>
+        <div className="flex items-center gap-1 text-sm text-gray-500">
+          <MapPin className="w-4 h-4" />
+          <span className="line-clamp-1">{place.address}</span>
         </div>
       </div>
     </div>

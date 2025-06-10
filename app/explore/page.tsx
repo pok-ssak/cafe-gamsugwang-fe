@@ -6,11 +6,13 @@ import { useAuth } from "@/hooks/useAuth"
 import { Place } from "@/types/place"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { FALLBACK_IMAGE_URL } from "@/app/constants"
-import { usePlaces } from "@/hooks/usePlaces"
-import { useCafeApi } from "@/hooks/useCafeApi"
 import { LocationProvider, useLocation } from '@/contexts/LocationContext'
 import { PlaceCard } from "@/components/place-card"
 import axiosInstance from "@/lib/axios"
+import { SelfRecommendProvider, useSelfRecommendContext } from "@/contexts/SelfRecommendContext"
+import { KeywordRecommendProvider, useKeywordRecommendContext } from "@/contexts/KeywordRecommendContext"
+import { LocationRecommendProvider, useLocationRecommendContext } from "@/contexts/LocationRecommendContext"
+import { KeywordRankProvider, useKeywordRankContext } from "@/contexts/KeywordRankContext"
 
 const CAFE_KEYWORDS = [
   { id: 1, name: "디저트 카페", color: "bg-blue-100" },
@@ -39,7 +41,17 @@ const POPULAR_KEYWORDS = [
 ]
 
 export default function Explore() {
-  return <ExploreContent />
+  return (
+    <SelfRecommendProvider>
+      <KeywordRecommendProvider>
+        <LocationRecommendProvider>
+          <KeywordRankProvider>
+            <ExploreContent />
+          </KeywordRankProvider>
+        </LocationRecommendProvider>
+      </KeywordRecommendProvider>
+    </SelfRecommendProvider>
+  )
 }
 
 function ExploreContent() {
@@ -48,38 +60,17 @@ function ExploreContent() {
   const recommendedScrollRef = useRef<HTMLDivElement>(null)
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(CAFE_KEYWORDS.map(keyword => keyword.name))
-  const [keywordPlaces, setKeywordPlaces] = useState<Place[]>([])
-  const [isKeywordLoading, setIsKeywordLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'recommended' | 'keywords' | 'nearby' | 'ranking'>('ranking')
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [places, setPlaces] = useState<Place[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
-  const [popularPlaces, setPopularPlaces] = useState<Place[]>([])
-  const [isPopularLoading, setIsPopularLoading] = useState(false)
-  const [hasMorePopular, setHasMorePopular] = useState(true)
-  const [popularPage, setPopularPage] = useState(1)
-  const [isLoadingMorePopular, setIsLoadingMorePopular] = useState(false)
   const [currentAddress, setCurrentAddress] = useState<string>("위치 정보를 가져오는 중...")
-  const [popularKeywords, setPopularKeywords] = useState<string[]>([])
-  const [isLoadingKeywords, setIsLoadingKeywords] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   
-  const {
-    places: placesFromPlacesHook,
-    nearbyPlaces,
-    isLoading: isPlacesLoading,
-    hasMoreNearby,
-    isLoadingMoreNearby,
-    loadMoreNearbyPlaces,
-    refreshPlaces,
-    refreshNearbyPlaces
-  } = usePlaces()
-
-  const { fetchKeywordRecommendCafes, fetchSelfRecommendCafes } = useCafeApi()
-  const { isTestMode, setIsTestMode, userLocation, refreshLocation } = useLocation()
+  const { userLocation, refreshLocation } = useLocation()
+  const { places: selfRecommendPlaces = [], isLoading: isSelfRecommendLoading, hasMore: hasMoreSelfRecommend, isLoadingMore: isLoadingMoreSelfRecommend, fetchPlaces: fetchSelfRecommendPlaces, loadMore: loadMoreSelfRecommend } = useSelfRecommendContext()
+  const { places: keywordPlaces = [], isLoading: isKeywordLoading, fetchPlaces: fetchKeywordPlaces } = useKeywordRecommendContext()
+  const { places: nearbyPlaces = [], isLoading: isNearbyLoading, hasMore: hasMoreNearby, isLoadingMore: isLoadingMoreNearby, fetchPlaces: fetchNearbyPlaces, loadMore: loadMoreNearby } = useLocationRecommendContext()
+  const { keywords: popularKeywords = [], isLoading: isLoadingKeywords } = useKeywordRankContext()
 
   // 좌표를 주소로 변환하는 함수
   const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
@@ -105,11 +96,12 @@ function ExploreContent() {
   useEffect(() => {
     if (userLocation) {
       getAddressFromCoords(userLocation.lat, userLocation.lon)
-        .then((address: string) => setCurrentAddress(address));
+        .then((address: string) => setCurrentAddress(address))
     }
-  }, [userLocation]);
+  }, [userLocation])
 
   const getCurrentPosition = (): Promise<GeolocationPosition> => {
+    let isTestMode = false
     return new Promise((resolve, reject) => {
       if (isTestMode) {
         // 테스트 모드일 때는 제주시청 좌표 반환
@@ -131,22 +123,16 @@ function ExploreContent() {
     })
   }
 
+  // 맞춤 추천 탭의 무한 스크롤
   useEffect(() => {
     const observer = new IntersectionObserver(
       async (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore && activeTab === 'recommended') {
+        if (entries[0].isIntersecting && hasMoreSelfRecommend && !isLoadingMoreSelfRecommend && activeTab === 'recommended') {
           try {
-            setIsLoadingMore(true)
             const position = await getCurrentPosition()
-            const nextPage = page + 1
-            const result = await fetchSelfRecommendCafes(position.coords.latitude, position.coords.longitude, nextPage)
-            setPlaces((prev: Place[]) => [...prev, ...result.content])
-            setHasMore(!result.last)
-            setPage(nextPage)
+            await loadMoreSelfRecommend(position.coords.latitude, position.coords.longitude)
           } catch (error) {
             console.error('Failed to fetch more places:', error)
-          } finally {
-            setIsLoadingMore(false)
           }
         }
       },
@@ -162,45 +148,16 @@ function ExploreContent() {
         observer.unobserve(observerTarget.current)
       }
     }
-  }, [hasMore, isLoadingMore, page, activeTab])
+  }, [hasMoreSelfRecommend, isLoadingMoreSelfRecommend, activeTab])
 
   const handleKeywordClick = async (keyword: string) => {
-    setIsKeywordLoading(true)
-    try {
-      // 이미 선택된 키워드면 제거, 아니면 추가
-      const newKeywords = selectedKeywords.includes(keyword)
-        ? selectedKeywords.filter(k => k !== keyword)
-        : [...selectedKeywords, keyword]
-      
-      setSelectedKeywords(newKeywords)
-
-      // 선택된 키워드가 있으면 검색, 없으면 빈 배열로 초기화
-      if (newKeywords.length > 0) {
-        const data = await fetchKeywordRecommendCafes(newKeywords)
-        setPlaces(data.content)
-      } else {
-        setPlaces([])
-      }
-    } catch (error) {
-      console.error('Failed to fetch keyword places:', error)
-    } finally {
-      setIsKeywordLoading(false)
-    }
-  }
-
-  const handleScroll = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
-    if (ref.current) {
-      const scrollAmount = 200
-      const currentScroll = ref.current.scrollLeft
-      const newScroll = direction === 'left' 
-        ? currentScroll - scrollAmount 
-        : currentScroll + scrollAmount
-      
-      ref.current.scrollTo({
-        left: newScroll,
-        behavior: 'smooth'
-      })
-    }
+    // 이미 선택된 키워드면 제거, 아니면 추가
+    const newKeywords = selectedKeywords.includes(keyword)
+      ? selectedKeywords.filter(k => k !== keyword)
+      : [...selectedKeywords, keyword]
+    
+    setSelectedKeywords(newKeywords)
+    await fetchKeywordPlaces(newKeywords)
   }
 
   // 스크롤 이벤트 핸들러
@@ -222,12 +179,19 @@ function ExploreContent() {
     })
   }
 
-  // 근처 카페 탭의 무한 스크롤을 위한 Intersection Observer
+  // 위치가 변경될 때 근처 카페 가져오기
+  useEffect(() => {
+    if (userLocation) {
+      fetchNearbyPlaces(userLocation.lat, userLocation.lon)
+    }
+  }, [userLocation])
+
+  // 근처 카페 탭의 무한 스크롤
   useEffect(() => {
     const observer = new IntersectionObserver(
       async (entries) => {
-        if (entries[0].isIntersecting && hasMoreNearby && !isLoadingMoreNearby && activeTab === 'nearby') {
-          await loadMoreNearbyPlaces()
+        if (entries[0].isIntersecting && hasMoreNearby && !isLoadingMoreNearby && activeTab === 'nearby' && userLocation) {
+          await loadMoreNearby(userLocation.lat, userLocation.lon)
         }
       },
       { threshold: 1.0 }
@@ -242,60 +206,7 @@ function ExploreContent() {
         observer.unobserve(observerTarget.current)
       }
     }
-  }, [hasMoreNearby, isLoadingMoreNearby, activeTab])
-
-  // 인기 카페 목록 가져오기
-  const fetchPopularPlaces = async (page: number = 1) => {
-    if (page === 1) {
-      setIsPopularLoading(true)
-    } else {
-      setIsLoadingMorePopular(true)
-    }
-
-    try {
-      const position = await getCurrentPosition()
-      const data = await fetchSelfRecommendCafes(position.coords.latitude, position.coords.longitude, page)
-      
-      if (page === 1) {
-        setPopularPlaces(data.content)
-      } else {
-        setPopularPlaces(prev => [...prev, ...data.content])
-      }
-      
-      setHasMorePopular(!data.last)
-      setPopularPage(page)
-    } catch (error) {
-      console.error('Failed to fetch popular places:', error)
-    } finally {
-      if (page === 1) {
-        setIsPopularLoading(false)
-      } else {
-        setIsLoadingMorePopular(false)
-      }
-    }
-  }
-
-  // 인기 카페 탭의 무한 스크롤을 위한 Intersection Observer
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      async (entries) => {
-        if (entries[0].isIntersecting && hasMorePopular && !isLoadingMorePopular && activeTab === 'ranking') {
-          await fetchPopularPlaces(popularPage + 1)
-        }
-      },
-      { threshold: 1.0 }
-    )
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
-
-    return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current)
-      }
-    }
-  }, [hasMorePopular, isLoadingMorePopular, popularPage, activeTab])
+  }, [hasMoreNearby, isLoadingMoreNearby, activeTab, userLocation])
 
   const handleTabChange = (tab: 'recommended' | 'keywords' | 'nearby' | 'ranking') => {
     setActiveTab(tab)
@@ -303,24 +214,6 @@ function ExploreContent() {
       handleKeywordClick(selectedKeywords[0])
     }
   }
-
-  // 인기 키워드 가져오기
-  const fetchPopularKeywords = async () => {
-    try {
-      setIsLoadingKeywords(true)
-      const response = await axiosInstance.get('/api/v2/cafes/top-searches')
-      setPopularKeywords(response.data.data)
-    } catch (error) {
-      console.error('Failed to fetch popular keywords:', error)
-    } finally {
-      setIsLoadingKeywords(false)
-    }
-  }
-
-  // 컴포넌트 마운트 시 인기 키워드 가져오기
-  useEffect(() => {
-    fetchPopularKeywords()
-  }, [])
 
   if (isAuthLoading) {
     return (
@@ -340,7 +233,7 @@ function ExploreContent() {
         </div>
 
         {/* 탭 네비게이션 */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
           <div className="max-w-2xl mx-auto px-4">
             <div className="flex space-x-8">
               <button
@@ -396,14 +289,14 @@ function ExploreContent() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold">키워드 인기 순위</h2>
-                <span className="text-sm text-gray-500">2025.06.10</span>
+                <span className="text-sm text-gray-500">2025.06.11</span>
               </div>
               <div className="bg-white rounded-2xl shadow-lg p-4">
                 <div className="space-y-3">
                   {isLoadingKeywords ? (
                     <div className="text-center py-4 text-gray-500">로딩 중...</div>
-                  ) : popularKeywords.length > 0 ? (
-                    popularKeywords.map((keyword, index) => (
+                  ) : popularKeywords?.length > 0 ? (
+                    popularKeywords.map((keyword: string, index: number) => (
                       <div key={index} className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-600">
@@ -425,60 +318,19 @@ function ExploreContent() {
                 </div>
               </div>
             </div>
-            {/* 전체 랭킹 */}
-            <div>
-              <h2 className="text-xl font-bold mb-4">전체 랭킹</h2>
-              <div className="space-y-4">
-                {isPopularLoading ? (
-                  <div className="text-center py-8 text-gray-500">로딩 중...</div>
-                ) : popularPlaces.length > 0 ? (
-                  popularPlaces.map((place, index) => (
-                    <div
-                      key={place.id}
-                      className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-                      onClick={() => {
-                        setSelectedPlace(place)
-                        setShowModal(true)
-                      }}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-2xl">
-                          {RANKING_BADGES[index + 1 as keyof typeof RANKING_BADGES] || `${index + 1}`}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-bold truncate">{place.title}</h3>
-                            <div className="flex items-center gap-1 bg-orange-100 px-1.5 py-0.5 rounded-lg">
-                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                              <span className="font-medium text-orange-600 text-sm">{place.rate}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-600 text-sm">
-                            <MapPin className="w-4 h-4" />
-                            <span className="truncate">{place.address}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">랭킹 정보가 없습니다</div>
-                )}
-              </div>
-            </div>
           </div>
         )}
 
         {/* 맞춤 추천 탭 */}
         {activeTab === 'recommended' && (
           <div className="space-y-4">
-            {isPlacesLoading ? (
+            {isSelfRecommendLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
               </div>
-            ) : (
+            ) : selfRecommendPlaces?.length > 0 ? (
               <div className="grid grid-cols-2 gap-4">
-                {places.map((place) => (
+                {selfRecommendPlaces.map((place) => (
                   <PlaceCard
                     key={place.id}
                     place={place}
@@ -486,10 +338,14 @@ function ExploreContent() {
                   />
                 ))}
                 <div ref={observerTarget} className="h-10 flex items-center justify-center col-span-2">
-                  {isLoadingMore && (
+                  {isLoadingMoreSelfRecommend && (
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                   )}
                 </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                추천 카페가 없습니다
               </div>
             )}
           </div>
@@ -518,13 +374,13 @@ function ExploreContent() {
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                   </div>
-                ) : places.length === 0 ? (
+                ) : keywordPlaces?.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     해당 키워드의 카페가 없어요!
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    {places.map((place) => (
+                    {keywordPlaces.map((place) => (
                       <PlaceCard
                         key={place.id}
                         place={place}
@@ -563,11 +419,11 @@ function ExploreContent() {
               </button>
             </div>
 
-            {isPlacesLoading ? (
+            {isNearbyLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
               </div>
-            ) : nearbyPlaces.length === 0 ? (
+            ) : nearbyPlaces?.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 근처에 10km이내 카페가 없어요!
               </div>
@@ -596,7 +452,6 @@ function ExploreContent() {
         <PlaceDetailModal
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
-          onImageClick={(imageUrl) => setSelectedImage(imageUrl)}
         />
       )}
 

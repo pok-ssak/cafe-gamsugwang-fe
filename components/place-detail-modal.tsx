@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp, Pencil, Globe } from "lucide-react"
+import { X, Star, Heart, MapPin, Clock, Phone, Navigation, MessageSquare, ArrowUp, ChevronUp, Camera, ChevronLeft, ChevronRight, User, ThumbsUp, Pencil, Globe, Menu as MenuIcon, Grid, Info, Map } from "lucide-react"
 import Image from "next/image"
 import { Place, MenuItem } from "@/types/place"
 import { Review } from "@/types/review"
@@ -11,12 +11,15 @@ import axiosInstance from "@/lib/axios"
 import { ReviewWriteModal } from "./review-write-modal"
 import { FALLBACK_IMAGE_URL } from "@/app/constants"
 import Script from "next/script"
+import { ReviewCard } from "./review-card"
 
 interface PlaceDetailModalProps {
   place: Place | null
   onClose: () => void
   onBookmarkChange?: (placeId: number, isBookmarked: boolean) => void
 }
+
+type TabType = 'menu' | 'info' | 'hours' | 'roadmap'
 
 export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChange }: PlaceDetailModalProps) {
   const router = useRouter()
@@ -46,6 +49,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
   const [showExpandButton, setShowExpandButton] = useState(false)
   const keywordsRef = useRef<HTMLDivElement>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('menu')
 
   // 카페 상세 정보 가져오기
   const fetchCafeDetails = async () => {
@@ -203,18 +207,14 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     setImagePreview([])
   }
 
+  const handleViewReviews = () => {
+    if (!place) return;
+    window.open(`https://place.map.kakao.com/${place.id}`, '_blank');
+  }
+
   const handleReviewClick = () => {
-    // TODO: 실제 로그인 상태 체크 로직으로 대체
-    const isLoggedIn = true // 임시로 true로 설정
-
-    if (!isLoggedIn) {
-      if (confirm("리뷰를 작성하려면 로그인이 필요합니다. 로그인하시겠습니까?")) {
-        router.push("/login")
-      }
-      return
-    }
-
-    setShowReviewModal(true)
+    if (!place) return;
+    setShowReviewModal(true);
   }
 
   const handleSubmitReview = async () => {
@@ -331,7 +331,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
 
   // 카카오맵 로드뷰 초기화
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.kakao && window.kakao.maps && place) {
+    if (typeof window !== 'undefined' && window.kakao && window.kakao.maps && place && activeTab === 'roadmap') {
       const roadviewContainer = roadviewRef.current
       if (!roadviewContainer) return
 
@@ -346,7 +346,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
         newRoadview.setPanoId(panoId, position)
       })
     }
-  }, [place])
+  }, [place, activeTab])
 
   // 키워드 컨테이너의 높이를 체크하여 더보기 버튼 표시 여부 결정
   useEffect(() => {
@@ -370,6 +370,56 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     }
   }, [place?.keywordList, isExpanded]);
 
+  const parseOpenTime = (openTime: string) => {
+    if (!openTime) return null;
+    
+    const dayOrder = ['월', '화', '수', '목', '금', '토', '일'];
+    const weekdays: { label: string; time: string }[] = [];
+    const holidays: { label: string; time: string }[] = [];
+    
+    // openTime 문자열을 세미콜론으로 분리
+    const timeStrings = openTime.split(';');
+    
+    timeStrings.forEach((timeStr) => {
+      // 첫 번째 : 를 기준으로 분리
+      const colonIndex = timeStr.indexOf(':');
+      if (colonIndex !== -1) {
+        const label = timeStr.substring(0, colonIndex);
+        const time = timeStr.substring(colonIndex + 1);
+        
+        if (dayOrder.includes(label)) {
+          weekdays.push({ label, time });
+        } else {
+          holidays.push({ label, time });
+        }
+      }
+    });
+
+    // 요일 순서대로 정렬
+    weekdays.sort((a, b) => {
+      const indexA = dayOrder.indexOf(a.label);
+      const indexB = dayOrder.indexOf(b.label);
+      return indexA - indexB;
+    });
+
+    return [...weekdays, ...holidays];
+  };
+
+  const tabs = [
+    { id: 'menu', label: '메뉴' },
+    { id: 'info', label: '정보' },
+    { id: 'hours', label: '영업시간' },
+    { id: 'roadmap', label: '로드맵' },
+  ]
+
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('클립보드에 복사되었습니다.');
+    }).catch((err) => {
+      console.error('클립보드 복사 실패:', err);
+    });
+  };
+
   if (!place) return null
 
   return (
@@ -383,10 +433,10 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
       }}
     >
       <Script
-        src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services`}
+        src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services,roadview`}
         strategy="beforeInteractive"
       />
-      <div className="bg-white rounded-2xl w-full max-w-lg h-[720px] flex flex-col relative">
+      <div className="bg-white rounded-2xl w-full max-w-[calc(512px+16px)] h-[760px] flex flex-col relative">
         {/* 로딩 상태 표시 */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
@@ -426,9 +476,9 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
           </div>
 
           <div className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
                   <h2 className="text-2xl font-bold">{place.title}</h2>
                   <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -436,235 +486,255 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
                   </div>
                   <span className="text-gray-500 text-sm">({place.reviewCount})</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600 text-sm">
-                  <MapPin className="w-4 h-4" />
-                  <span>{place.address}</span>
-                </div>
-                
+                <button 
+                  className={`p-2 hover:bg-gray-100 rounded-full transition-colors ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleBookmarkToggle}
+                  disabled={isBookmarkLoading}
+                >
+                  <Heart className={`w-6 h-6 ${isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                </button>
               </div>
-              <button 
-                className={`p-2 hover:bg-gray-100 rounded-full transition-colors ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={handleBookmarkToggle}
-                disabled={isBookmarkLoading}
+              <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
+                <MapPin className="w-4 h-4" />
+                <span>{place.address}</span>
+              </div>
+              {place.keywordList && place.keywordList.length > 0 && (
+                <div className="relative mt-4">
+                  <div className="bg-white rounded-lg p-3">
+                    <div 
+                      ref={keywordsRef}
+                      className="flex flex-wrap gap-2 transition-all duration-300 overflow-hidden justify-center"
+                      style={{ maxHeight: isExpanded ? 'none' : '72px' }}
+                    >
+                      {place.keywordList.map((keyword, index) => (
+                        <span 
+                          key={index}
+                          className="px-2 py-1 bg-orange-50 text-gray-600 text-xs rounded-full"
+                        >
+                          {keyword.keyword}
+                        </span>
+                      ))}
+                    </div>
+                    {showExpandButton && !isExpanded && (
+                      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent" />
+                    )}
+                  </div>
+                  {showExpandButton && (
+                    <div className="flex justify-end mt-2 relative z-10">
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        {isExpanded ? '접기' : '더보기'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 액션 버튼 */}
+            <div className="flex gap-4 py-4">
+              <button
+                onClick={handleGetDirections}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
               >
-                <Heart className={`w-6 h-6 ${isBookmarked ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                <Navigation className="w-4 h-4" />
+                <span>길찾기</span>
+              </button>
+              <button
+                onClick={handleViewReviews}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>후기보기</span>
               </button>
             </div>
 
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-2 text-gray-600 text-sm">
-                <Clock className="w-4 h-4" />
-                <span> {place.openTime || "정보가 없습니다"}</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600 text-sm">
-                <Phone className="w-4 h-4" />
-                <span>{place.phoneNumber || "정보가 없습니다"}</span>
-              </div>
-            </div>
-            {place.keywordList && place.keywordList.length > 0 && (
-              <div className="relative">
-                <div 
-                  ref={keywordsRef}
-                  className="flex flex-wrap gap-2 mt-2 transition-all duration-300 overflow-hidden"
-                >
-                  {place.keywordList.map((keyword, index) => (
-                    <span 
-                      key={index}
-                      className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
-                    >
-                      {keyword.keyword}
-                    </span>
-                  ))}
+
+            {/* 리뷰 섹션 */}
+            <div className="border-t mt-4">
+              <div className="py-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-medium text-gray-900">감수광 리뷰</h3>
+                  <button
+                    onClick={handleReviewClick}
+                    className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600"
+
+                  >
+                    <Pencil className="w-4 h-4" />
+                    <span>리뷰작성</span>
+                  </button>
                 </div>
-                {showExpandButton && (
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="text-xs text-gray-500 hover:text-gray-700 mt-2"
-                    >
-                      {isExpanded ? '접기' : '더보기'}
-                    </button>
+                {isLoadingReviews ? (
+                  <div className="text-center py-8 text-gray-500">로딩 중...</div>
+                ) : reviews.length > 0 ? (
+                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                    {reviews.map((review) => (
+                      <ReviewCard
+                        key={review.id}
+                        review={review}
+                        onLikeToggle={handleLikeToggle}
+                        variant="modal"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    아직 리뷰가 없습니다
                   </div>
                 )}
               </div>
-            )}
-            <p className="text-gray-600 leading-relaxed mb-6">
-              {place.description}
-            </p>
-
-            {/* 액션 버튼 */}
-            <div className="flex gap-2 mt-4">
-              <Button 
-                className="flex-1 text-sm h-9 bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={handleGetDirections}
-              >
-                <MapPin className="w-4 h-4 mr-1" />
-                길찾기
-              </Button>
-              <Button 
-                variant="outline" 
-                className="flex-1 text-sm h-9"
-                onClick={() => {
-                  window.open(`https://place.map.kakao.com/${place.id}#comment`, '_blank')
-                }}
-              >
-                <MessageSquare className="w-4 h-4 mr-1" />
-                후기보기
-              </Button>
             </div>
-
-            {/* 로드뷰 섹션 */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">로드뷰</h3>
-              </div>
-              <div 
-                ref={roadviewRef}
-                className="w-full h-[300px] rounded-xl overflow-hidden"
-              />
-            </div>
-
-            {/* 리뷰 섹션 */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">감수광 리뷰</h3>
-                <Button 
-                  variant="outline" 
-                  className="text-sm h-8 w-8 p-0"
-                  onClick={handleReviewClick}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </div>
-              {isLoadingReviews ? (
-                <div className="text-center py-8 text-gray-500">
-                  리뷰를 불러오는 중...
-                </div>
-              ) : reviews && reviews.length > 0 ? (
-                <div className="relative">
-                  <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide">
-                    {reviews.map((review, index) => (
-                      <div key={index} className="flex-shrink-0 w-[280px] bg-gray-50 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                              {review.profileImageUrl ? (
-                                <Image
-                                  src={review.profileImageUrl}
-                                  alt={review.nickname}
-                                  width={32}
-                                  height={32}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = FALLBACK_IMAGE_URL;
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                                  <User className="w-4 h-4 text-gray-500" />
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-sm font-medium truncate">{review.nickname}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => handleLikeToggle(review.id)}
-                              className={`flex items-center gap-1 transition-colors ${
-                                review.likedByUser ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-                              }`}
-                            >
-                              <ThumbsUp className="w-4 h-4" />
-                              <span className="text-xs">{review.likeCount}</span>
-                            </button>
-                            <span className="text-xs text-gray-500">{review.createdAt}</span>
-                          </div>
-                        </div>
-                        {review.imageUrl && (
-                          <div className="relative w-full h-40 mb-2 rounded-lg overflow-hidden">
-                            <Image
-                              src={review.imageUrl}
-                              alt="리뷰 이미지"
-                              fill
-                              className="object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = FALLBACK_IMAGE_URL;
-                              }}
-                            />
-                          </div>
-                        )}
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          <span className="inline-flex items-center gap-1 mr-2">
-                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium text-gray-700">{review.rating}</span>
-                          </span>
-                          {review.content}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  아직 리뷰가 없습니다
-                </div>
-              )}
-            </div>
-
-            {/* 메뉴 섹션 */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">메뉴</h3>
-                <Button 
-                  variant="outline" 
-                  className="text-sm h-8 w-8 p-0"
-                  onClick={() => {
-                    // TODO: 메뉴 수정 기능 구현
-                    alert('메뉴 수정 기능은 준비 중입니다.')
-                  }}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </div>
-              {menuItems && menuItems.length > 0 ? (
-                <div className="space-y-4">
-                  {menuItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
-                        {item.menuImageUrl ? (
-                          <Image
-                            src={item.menuImageUrl || FALLBACK_IMAGE_URL}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = FALLBACK_IMAGE_URL;
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Camera className="w-8 h-8 text-gray-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">{item.name}</h4>
-                        <span className="font-medium">{item.price.toLocaleString()}원</span>
-                      </div>
-                    </div>
+            
+            {/* 탭 네비게이션 */}
+            <div className="border-b">
+              <div className="flex overflow-x-auto scrollbar-hide justify-center">
+                <div className="flex">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as TabType)}
+                      className={`flex-none py-3 px-6 text-sm font-medium flex items-center justify-center whitespace-nowrap ${
+                        activeTab === tab.id
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  메뉴 정보가 없습니다
+              </div>
+            </div>
+            {/* 탭 컨텐츠 */}
+            <div className="overflow-y-auto max-h-[calc(90vh-300px)]">
+              {activeTab === 'menu' && (
+                <div className="py-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-gray-900">메뉴</h3>
+                    <button
+                      className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      <span>수정제안</span>
+                    </button>
+                  </div>
+                  {menuItems && menuItems.length > 0 ? (
+                    <div className="space-y-4">
+                      {menuItems.map((item, index) => (
+                        <div key={index} className="flex items-center gap-4">
+                          <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+                            {item.menuImageUrl ? (
+                              <Image
+                                src={item.menuImageUrl || FALLBACK_IMAGE_URL}
+                                alt={item.name}
+                                fill
+                                className="object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = FALLBACK_IMAGE_URL;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Camera className="w-8 h-8 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">{item.name}</h4>
+                            <span className="font-medium">{item.price.toLocaleString()}원</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      메뉴 정보가 없습니다
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'info' && (
+                <div className="p-4 space-y-6">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900 mb-1">주소</h3>
+                      <button
+                        onClick={() => handleCopyToClipboard(place.address)}
+                        className="text-gray-600 hover:text-orange-500 transition-colors text-left w-full"
+                      >
+                        {place.address}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Phone className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900 mb-1">전화번호</h3>
+                      <button
+                        onClick={() => handleCopyToClipboard(place.phoneNumber || '')}
+                        className="text-gray-600 hover:text-orange-500 transition-colors text-left w-full"
+                      >
+                        {place.phoneNumber || "정보가 없습니다"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900 mb-1">영업시간</h3>
+                      <p className="text-gray-600">
+                        {place.openTime || "정보가 없습니다"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed">
+                    {place.description}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === 'hours' && (
+                <div className="p-4 space-y-4">
+                  <div className="space-y-3">
+                    {(() => {
+                      const parsedTimes = parseOpenTime(place.openTime || '');
+                      if (!parsedTimes || parsedTimes.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-gray-500">
+                            영업시간 정보가 없습니다
+                          </div>
+                        );
+                      }
+                      
+                      return parsedTimes.map(({ label, time }) => (
+                        <div key={label} className="flex justify-between items-center py-1">
+                          <span className="text-gray-600 min-w-[80px]">{label}</span>
+                          <span className="font-medium text-gray-900">{time}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="mt-4 p-3 bg-orange-50 rounded-lg">
+                    <p className="text-sm text-orange-600">
+                      * 공휴일 영업시간은 별도로 안내드립니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'roadmap' && (
+                <div className="p-4 space-y-4">
+                  <div className="relative h-[300px] rounded-lg overflow-hidden">
+                    <div ref={roadviewRef} className="w-full h-full" />
+                  </div>
                 </div>
               )}
             </div>
-
-            
           </div>
         </div>
       </div>
@@ -680,13 +750,10 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
 
       {/* 이미지 확대 모달 */}
       {selectedImage && (
-        <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center">
-          <button
-            onClick={() => setSelectedImage(null)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300"
-          >
-            <X className="w-6 h-6" />
-          </button>
+        <div 
+          className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center"
+          onClick={() => setSelectedImage(null)}
+        >
           <img
             src={selectedImage}
             alt="확대된 이미지"
