@@ -184,6 +184,7 @@ export function Map({
     }
   }, [map, places, onPlaceSelect])
 
+
   // Update map center when center prop changes
   useEffect(() => {
     if (!map || !center) return
