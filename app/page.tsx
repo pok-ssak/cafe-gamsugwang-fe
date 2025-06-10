@@ -338,7 +338,7 @@ export default function Home() {
 
       {/* 키워드 목록 */}
       {keywordList.length > 0 && (
-        <div className={`absolute max-w-6xl mx-auto left-0 right-0 z-10 transition-all duration-300 ${isResultsMinimized ? 'bottom-[60px]' : 'bottom-[290px]'}`}>
+        <div className={`absolute max-w-6xl mx-auto left-0 right-0 z-10 transition-all duration-300 ${isResultsMinimized ? 'bottom-[60px]' : 'bottom-[300px]'}`}>
           <div className="max-w-2xl mx-auto relative">
             <div className="mx-4 pb-2 bg-transparent rounded-lg shadow-lg">
               <div className="px-4 py-3">
@@ -349,7 +349,7 @@ export default function Home() {
                   {keywordList.map((keyword, index) => (
                     <span 
                       key={index}
-                      className="px-3 py-1.5 bg-orange-50 text-gray-600 text-sm rounded-full flex-shrink-0 shadow-md cursor-pointer hover:bg-orange-100 transition-colors"
+                      className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-full flex-shrink-0 shadow-md cursor-pointer hover:bg-orange-100 transition-colors"
                       onClick={() => handleKeywordClick(keyword)}
                     >
                       {keyword}
