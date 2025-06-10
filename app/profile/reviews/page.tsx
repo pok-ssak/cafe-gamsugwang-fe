@@ -31,7 +31,7 @@ export default function MyReviews() {
           }
         )
         if (response.data) {
-          setReviews(response.data)
+        setReviews(response.data)
         }
       } catch (error) {
         console.error('Failed to fetch reviews:', error)

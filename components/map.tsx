@@ -74,12 +74,12 @@ export function Map({
     const marker = new window.kakao.maps.Marker({
       position: new window.kakao.maps.LatLng(place.lat, place.lon),
       map: map
-    })
+      })
 
     // 마커 클릭 이벤트
     window.kakao.maps.event.addListener(marker, 'click', () => {
       setSelectedPlace(place)
-    })
+      })
 
     return marker
   }
@@ -91,7 +91,7 @@ export function Map({
     // 기존 마커 제거
     markers.forEach(marker => marker.setMap(null))
     setMarkers([])
-
+        
     // 새로운 마커 생성
     const newMarkers = places.map(place => createMarker(place))
     setMarkers(newMarkers)

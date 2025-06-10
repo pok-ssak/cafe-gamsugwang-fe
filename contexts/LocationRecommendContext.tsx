@@ -1,3 +1,5 @@
+"use client"
+
 import { createContext, useContext, ReactNode, useEffect } from 'react'
 import { useLocationRecommend } from '@/hooks/useLocationRecommend'
 
@@ -16,11 +18,6 @@ const LocationRecommendContext = createContext<LocationRecommendContextType | un
 
 export function LocationRecommendProvider({ children }: { children: ReactNode }) {
   const { locationRecommend } = useLocationRecommend()
-
-  useEffect(() => {
-    // Reset state on mount to ensure consistent initial state
-    locationRecommend.refresh(0, 0)
-  }, [])
 
   return (
     <LocationRecommendContext.Provider value={locationRecommend}>

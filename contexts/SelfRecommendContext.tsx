@@ -1,5 +1,8 @@
+"use client"
+
 import { createContext, useContext, ReactNode, useEffect } from 'react'
 import { useSelfRecommend } from '@/hooks/useSelfRecommend'
+import { useLocation } from './LocationContext'
 
 interface SelfRecommendContextType {
   places: any[]
@@ -16,11 +19,13 @@ const SelfRecommendContext = createContext<SelfRecommendContextType | undefined>
 
 export function SelfRecommendProvider({ children }: { children: ReactNode }) {
   const { selfRecommend } = useSelfRecommend()
+  const { userLocation } = useLocation()
 
   useEffect(() => {
-    // Reset state on mount to ensure consistent initial state
-    selfRecommend.refresh(0, 0)
-  }, [])
+    if (userLocation) {
+      selfRecommend.fetchPlaces(userLocation.lat, userLocation.lon)
+    }
+  }, [userLocation])
 
   return (
     <SelfRecommendContext.Provider value={selfRecommend}>

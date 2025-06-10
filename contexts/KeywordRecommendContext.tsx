@@ -1,8 +1,11 @@
+"use client"
+
 import { createContext, useContext, ReactNode, useEffect } from 'react'
 import { useKeywordRecommend } from '@/hooks/useKeywordRecommend'
+import { Place } from '@/types/place'
 
 interface KeywordRecommendContextType {
-  places: any[]
+  places: Place[]
   isLoading: boolean
   error: string | null
   fetchPlaces: (keywords: string[]) => Promise<void>
@@ -13,8 +16,9 @@ const KeywordRecommendContext = createContext<KeywordRecommendContextType | unde
 export function KeywordRecommendProvider({ children }: { children: ReactNode }) {
   const { keywordRecommend } = useKeywordRecommend()
 
+  // 초기 상태 설정
   useEffect(() => {
-    // Reset state on mount to ensure consistent initial state
+    // 초기 상태에서는 빈 배열로 시작
     keywordRecommend.fetchPlaces([])
   }, [])
 

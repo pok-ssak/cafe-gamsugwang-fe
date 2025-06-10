@@ -576,7 +576,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
                         review={review}
                         onLikeToggle={handleLikeToggle}
                         variant="modal"
-                      />
+                            />
                     ))}
                   </div>
                 ) : (
@@ -752,8 +752,8 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
       {selectedImage && (
         <div 
           className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center"
-          onClick={() => setSelectedImage(null)}
-        >
+            onClick={() => setSelectedImage(null)}
+          >
           <img
             src={selectedImage}
             alt="확대된 이미지"

@@ -13,6 +13,8 @@ import { SelfRecommendProvider, useSelfRecommendContext } from "@/contexts/SelfR
 import { KeywordRecommendProvider, useKeywordRecommendContext } from "@/contexts/KeywordRecommendContext"
 import { LocationRecommendProvider, useLocationRecommendContext } from "@/contexts/LocationRecommendContext"
 import { KeywordRankProvider, useKeywordRankContext } from "@/contexts/KeywordRankContext"
+import { ThemeProvider } from "@/components/theme-provider"
+import BottomNavigation from "@/components/bottom-navigation"
 
 const CAFE_KEYWORDS = [
   { id: 1, name: "디저트 카페", color: "bg-blue-100" },
@@ -42,15 +44,20 @@ const POPULAR_KEYWORDS = [
 
 export default function Explore() {
   return (
-    <SelfRecommendProvider>
-      <KeywordRecommendProvider>
-        <LocationRecommendProvider>
-          <KeywordRankProvider>
-            <ExploreContent />
-          </KeywordRankProvider>
-        </LocationRecommendProvider>
-      </KeywordRecommendProvider>
-    </SelfRecommendProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+        <SelfRecommendProvider>
+          <KeywordRecommendProvider>
+            <LocationRecommendProvider>
+              <KeywordRankProvider>
+                <div className="relative overflow-y-auto h-[calc(100vh-4rem)]">
+                  <ExploreContent />
+                </div>
+                <BottomNavigation />
+              </KeywordRankProvider>
+            </LocationRecommendProvider>
+          </KeywordRecommendProvider>
+        </SelfRecommendProvider>
+    </ThemeProvider>
   )
 }
 
@@ -100,40 +107,12 @@ function ExploreContent() {
     }
   }, [userLocation])
 
-  const getCurrentPosition = (): Promise<GeolocationPosition> => {
-    let isTestMode = false
-    return new Promise((resolve, reject) => {
-      if (isTestMode) {
-        // 테스트 모드일 때는 제주시청 좌표 반환
-        resolve({
-          coords: {
-            latitude: 33.4996213,
-            longitude: 126.5311884,
-            accuracy: 0,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null
-          },
-          timestamp: Date.now()
-        } as GeolocationPosition)
-      } else {
-        navigator.geolocation.getCurrentPosition(resolve, reject)
-      }
-    })
-  }
-
   // 맞춤 추천 탭의 무한 스크롤
   useEffect(() => {
     const observer = new IntersectionObserver(
       async (entries) => {
-        if (entries[0].isIntersecting && hasMoreSelfRecommend && !isLoadingMoreSelfRecommend && activeTab === 'recommended') {
-          try {
-            const position = await getCurrentPosition()
-            await loadMoreSelfRecommend(position.coords.latitude, position.coords.longitude)
-          } catch (error) {
-            console.error('Failed to fetch more places:', error)
-          }
+        if (entries[0].isIntersecting && hasMoreSelfRecommend && !isLoadingMoreSelfRecommend && activeTab === 'recommended' && userLocation) {
+          await loadMoreSelfRecommend(userLocation.lat, userLocation.lon)
         }
       },
       { threshold: 1.0 }
@@ -148,7 +127,7 @@ function ExploreContent() {
         observer.unobserve(observerTarget.current)
       }
     }
-  }, [hasMoreSelfRecommend, isLoadingMoreSelfRecommend, activeTab])
+  }, [hasMoreSelfRecommend, isLoadingMoreSelfRecommend, activeTab, userLocation])
 
   const handleKeywordClick = async (keyword: string) => {
     // 이미 선택된 키워드면 제거, 아니면 추가
@@ -157,7 +136,11 @@ function ExploreContent() {
       : [...selectedKeywords, keyword]
     
     setSelectedKeywords(newKeywords)
-    await fetchKeywordPlaces(newKeywords)
+    
+    // 선택된 키워드가 있으면 API 호출
+    if (newKeywords.length > 0) {
+      await fetchKeywordPlaces(newKeywords)
+    }
   }
 
   // 스크롤 이벤트 핸들러
@@ -182,6 +165,13 @@ function ExploreContent() {
   // 위치가 변경될 때 근처 카페 가져오기
   useEffect(() => {
     if (userLocation) {
+      console.log('근처 카페 API 호출:', {
+        coordinates: {
+          lat: userLocation.lat,
+          lon: userLocation.lon
+        },
+        address: currentAddress
+      })
       fetchNearbyPlaces(userLocation.lat, userLocation.lon)
     }
   }, [userLocation])
@@ -191,6 +181,14 @@ function ExploreContent() {
     const observer = new IntersectionObserver(
       async (entries) => {
         if (entries[0].isIntersecting && hasMoreNearby && !isLoadingMoreNearby && activeTab === 'nearby' && userLocation) {
+          console.log('근처 카페 추가 로드:', {
+            coordinates: {
+              lat: userLocation.lat,
+              lon: userLocation.lon
+            },
+            address: currentAddress,
+            page: '추가 로드'
+          })
           await loadMoreNearby(userLocation.lat, userLocation.lon)
         }
       },
@@ -210,8 +208,9 @@ function ExploreContent() {
 
   const handleTabChange = (tab: 'recommended' | 'keywords' | 'nearby' | 'ranking') => {
     setActiveTab(tab)
+    // 키워드 탭으로 변경 시 선택된 키워드가 있으면 API 호출
     if (tab === 'keywords' && selectedKeywords.length > 0) {
-      handleKeywordClick(selectedKeywords[0])
+      fetchKeywordPlaces(selectedKeywords)
     }
   }
 
