@@ -66,7 +66,7 @@ export default function Home() {
         throw new Error('위치 정보를 가져올 수 없습니다.')
       }
 
-      const response = await axiosInstance.get(`/cafes/self-recommend`, {
+      const response = await axiosInstance.get(`/api/v1/cafes/self-recommend`, {
         params: {
           lat: userLocation.lat,
           lon: userLocation.lon
