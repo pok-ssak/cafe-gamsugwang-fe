@@ -9,6 +9,7 @@ interface MapProps {
   level?: number
   className?: string
   initialPlace?: Place
+  onPlaceClick?: (place: Place) => void
 }
 
 export function Map({ 
@@ -18,12 +19,14 @@ export function Map({
   center,
   level = 3,
   className = "w-full h-full",
-  initialPlace
+  initialPlace,
+  onPlaceClick
 }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
   const [markers, setMarkers] = useState<any[]>([])
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
+  const currentOverlayRef = useRef<any>(null)
 
   // Initialize map
   useEffect(() => {
@@ -56,50 +59,131 @@ export function Map({
       onMapClick?.(latlng.getLat(), latlng.getLng())
     })
 
+    // 첫 번째 장소가 있다면 오버레이 표시
+    if (places.length > 0) {
+      const firstPlace = places[0]
+      const content = document.createElement('div')
+      content.className = 'p-2 bg-white rounded-lg shadow-lg text-sm cursor-pointer hover:bg-gray-50'
+      content.textContent = firstPlace.title
+      
+      content.addEventListener('click', () => {
+        if (onPlaceSelect) {
+          onPlaceSelect(firstPlace)
+        }
+      })
+
+      const initialOverlay = new window.kakao.maps.CustomOverlay({
+        content: content,
+        position: initialCenter,
+        yAnchor: 2.2
+      })
+      initialOverlay.setMap(newMap)
+      currentOverlayRef.current = initialOverlay
+    }
+
     return () => {
       // Cleanup markers when component unmounts
       markers.forEach(marker => {
         if (marker.marker) {
           marker.marker.setMap(null)
         }
-        if (marker.overlay) {
-          marker.overlay.setMap(null)
-        }
       })
+      if (currentOverlayRef.current) {
+        currentOverlayRef.current.setMap(null)
+      }
     }
   }, [places, center]) // Add places and center as dependencies
 
-  // 마커 생성 함수
-  const createMarker = (place: Place) => {
-    const marker = new window.kakao.maps.Marker({
-      position: new window.kakao.maps.LatLng(place.lat, place.lon),
-      map: map
-      })
-
-    // 마커 클릭 이벤트
-    window.kakao.maps.event.addListener(marker, 'click', () => {
-      setSelectedPlace(place)
-      })
-
-    return marker
-  }
-
-  // 마커 생성 및 관리
+  // 마커 생성 및 이벤트 처리
   useEffect(() => {
-    if (!map || !places) return
+    if (!map) return
 
     // 기존 마커 제거
     markers.forEach(marker => marker.setMap(null))
-    setMarkers([])
+    
+    // 현재 오버레이 제거
+    if (currentOverlayRef.current) {
+      currentOverlayRef.current.setMap(null)
+      currentOverlayRef.current = null
+    }
+
+    const newMarkers = places.map(place => {
+      const marker = new window.kakao.maps.Marker({
+        position: new window.kakao.maps.LatLng(place.lat, place.lon),
+        map: map
+      })
+
+      // 마커 클릭 이벤트
+      window.kakao.maps.event.addListener(marker, 'click', () => {
+        // 현재 오버레이 제거
+        if (currentOverlayRef.current) {
+          currentOverlayRef.current.setMap(null)
+          currentOverlayRef.current = null
+        }
+
+        // 새로운 오버레이 생성
+        const content = document.createElement('div')
+        content.className = 'p-2 bg-white rounded-lg shadow-lg text-sm cursor-pointer hover:bg-gray-50'
+        content.textContent = place.title
         
-    // 새로운 마커 생성
-    const newMarkers = places.map(place => createMarker(place))
+        // 오버레이 클릭 이벤트 추가
+        content.addEventListener('click', () => {
+          if (onPlaceSelect) {
+            onPlaceSelect(place)
+          }
+        })
+
+        const newOverlay = new window.kakao.maps.CustomOverlay({
+          content: content,
+          position: marker.getPosition(),
+          yAnchor: 2.2
+        })
+        newOverlay.setMap(map)
+        currentOverlayRef.current = newOverlay
+      })
+
+      return marker
+    })
+
     setMarkers(newMarkers)
+
+    // 첫 번째 마커가 있다면 자동으로 클릭 이벤트 발생
+    if (newMarkers.length > 0) {
+      const firstMarker = newMarkers[0]
+      const firstPlace = places[0]
+      
+      // 지도 중심 이동
+      map.setCenter(firstMarker.getPosition())
+      
+      // 오버레이 생성
+      const content = document.createElement('div')
+      content.className = 'p-2 bg-white rounded-lg shadow-lg text-sm cursor-pointer hover:bg-gray-50'
+      content.textContent = firstPlace.title
+      
+      content.addEventListener('click', () => {
+        if (onPlaceSelect) {
+          onPlaceSelect(firstPlace)
+        }
+      })
+
+      const newOverlay = new window.kakao.maps.CustomOverlay({
+        content: content,
+        position: firstMarker.getPosition(),
+        yAnchor: 2.2
+      })
+      newOverlay.setMap(map)
+      currentOverlayRef.current = newOverlay
+    }
 
     return () => {
       newMarkers.forEach(marker => marker.setMap(null))
+      if (currentOverlayRef.current) {
+        currentOverlayRef.current.setMap(null)
+        currentOverlayRef.current = null
+      }
     }
-  }, [map, places])
+  }, [map, places, onPlaceSelect])
+
 
   // Update map center when center prop changes
   useEffect(() => {

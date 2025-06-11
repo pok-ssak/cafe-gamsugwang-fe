@@ -59,6 +59,7 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
     try {
       const response = await axiosInstance.get(`/api/v1/cafes/${initialPlace.id}`);
       const cafeData = response.data.data;
+      console.log('Cafe Details API Response:', cafeData);
       setPlace(cafeData);
       setIsBookmarked(cafeData.isBookmarked || false);
     } catch (error) {
@@ -97,6 +98,13 @@ export function PlaceDetailModal({ place: initialPlace, onClose, onBookmarkChang
       setIsBookmarked(place.isBookmarked || false)
     }
   }, [place])
+
+  // initialPlace가 변경될 때 북마크 상태 업데이트
+  useEffect(() => {
+    if (initialPlace) {
+      setIsBookmarked(initialPlace.isBookmarked || false)
+    }
+  }, [initialPlace])
 
   // 메뉴 데이터 로드
   const fetchMenuItems = async () => {

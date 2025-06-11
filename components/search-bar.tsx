@@ -165,7 +165,7 @@ export function SearchBar({ onSearch, onFocusChange, className = "" }: SearchBar
 
       {/* 자동완성 결과 */}
       {isSearchFocused && searchQuery.trim() && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg max-h-[300px] overflow-y-auto">
+        <div className="max-w-2xl mx-auto absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg max-h-[300px] overflow-y-auto">
           {isLoadingAutoComplete ? (
             <div className="px-4 py-3 text-center text-gray-500">
               검색 중...
