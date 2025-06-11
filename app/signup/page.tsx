@@ -134,7 +134,7 @@ export default function Signup() {
             password,
             nickname: formData.nickname,
             keywords: formData.keywords.map(k => ({
-              word: {k},
+              word: k,
               count: 0
             }))
           };
