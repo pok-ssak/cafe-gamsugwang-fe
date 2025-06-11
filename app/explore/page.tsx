@@ -2,7 +2,8 @@
 
 import { ChevronRight, Star, Heart, MapPin, X } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
-import { useAuth } from "@/hooks/useAuth"
+// import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/contexts/AuthContext"
 import { Place } from "@/types/place"
 import { PlaceDetailModal } from "@/components/place-detail-modal"
 import { FALLBACK_IMAGE_URL } from "@/app/constants"
